@@ -1,0 +1,104 @@
+<%- include('../partials/header', { title, path, mes, ejercicio, empresa }) %>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h4 class="mb-1 fw-bold" style="color:#0f172a;">Reporte de IVA</h4>
+    <p class="text-muted mb-0" style="font-size:.9rem;">Determinación del IVA del período</p>
+  </div>
+  <form class="d-flex align-items-center gap-2" method="GET" action="/iva">
+    <div>
+      <select class="form-select form-select-sm" name="mes" style="border-radius:8px;border-color:#e2e8f0;font-size:.85rem;width:auto;">
+        <% var meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']; %>
+        <% for (var i = 1; i <= 12; i++) { %>
+          <option value="<%= i %>" <%= mes == i ? 'selected' : '' %>><%= meses[i-1] %></option>
+        <% } %>
+      </select>
+    </div>
+    <div>
+      <select class="form-select form-select-sm" name="ejercicio" style="border-radius:8px;border-color:#e2e8f0;font-size:.85rem;width:auto;">
+        <% for (var a = 2020; a <= 2035; a++) { %>
+          <option value="<%= a %>" <%= ejercicio == a ? 'selected' : '' %>><%= a %></option>
+        <% } %>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-sm btn-period"><i class="bi bi-arrow-repeat me-1"></i>Actualizar</button>
+  </form>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-3">
+    <div class="card card-dashboard">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="stat-icon" style="background:#f0fdf4;color:#16a34a;"><i class="bi bi-arrow-down-circle"></i></div>
+        <div>
+          <div class="stat-label">IVA Acreditable</div>
+          <div class="stat-value" style="color:#16a34a;">$<%= Number(iva.iva_acreditable).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card card-dashboard">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="stat-icon" style="background:#eff6ff;color:#2563eb;"><i class="bi bi-arrow-up-circle"></i></div>
+        <div>
+          <div class="stat-label">IVA Trasladado</div>
+          <div class="stat-value" style="color:#2563eb;">$<%= Number(iva.iva_trasladado).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card card-dashboard">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="stat-icon" style="background:#fff7ed;color:#ea580c;"><i class="bi bi-credit-card"></i></div>
+        <div>
+          <div class="stat-label">IVA por Pagar</div>
+          <div class="stat-value" style="color:#ea580c;">$<%= Number(iva.iva_por_pagar).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-3">
+    <div class="card card-dashboard">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="stat-icon" style="background:<%= iva.iva_a_favor > 0 ? '#fef2f2' : '#f0fdf4' %>;color:<%= iva.iva_a_favor > 0 ? '#dc2626' : '#16a34a' %>;"><i class="bi bi-cash-coin"></i></div>
+        <div>
+          <div class="stat-label">IVA a Favor</div>
+          <div class="stat-value" style="color:<%= iva.iva_a_favor > 0 ? '#dc2626' : '#16a34a' %>;">$<%= Number(iva.iva_a_favor).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="card card-dashboard">
+  <div class="card-body">
+    <div class="section-title"><i class="bi bi-calculator"></i>Determinación del IVA</div>
+    <table class="table table-sm table-borderless table-summary">
+      <thead>
+        <tr><th>Concepto</th><th class="text-end">Importe</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span style="color:#2563eb;"><i class="bi bi-arrow-up-circle me-1"></i>IVA Trasladado</span></td>
+          <td class="text-end fw-semibold">$<%= Number(iva.iva_trasladado).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></td>
+        </tr>
+        <tr>
+          <td><span style="color:#16a34a;"><i class="bi bi-arrow-down-circle me-1"></i>IVA Acreditable</span></td>
+          <td class="text-end fw-semibold">$<%= Number(iva.iva_acreditable).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></td>
+        </tr>
+        <tr class="total-row">
+          <td><span style="color:#ea580c;"><i class="bi bi-credit-card me-1"></i>IVA por Pagar</span></td>
+          <td class="text-end fw-bold" style="color:#ea580c;">$<%= Number(iva.iva_por_pagar).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></td>
+        </tr>
+        <tr class="total-row">
+          <td><span style="color:<%= iva.iva_a_favor > 0 ? '#dc2626' : '#16a34a' %>;"><i class="bi bi-cash-coin me-1"></i>IVA a Favor</span></td>
+          <td class="text-end fw-bold" style="color:<%= iva.iva_a_favor > 0 ? '#dc2626' : '#16a34a' %>;">$<%= Number(iva.iva_a_favor).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

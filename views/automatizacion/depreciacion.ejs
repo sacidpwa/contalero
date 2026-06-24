@@ -1,0 +1,136 @@
+<%- include('../partials/header', { title, path, mes, ejercicio, empresa }) %>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h4 class="mb-1 fw-bold" style="color:#0f172a;">Depreciación de Activos</h4>
+    <p class="text-muted mb-0" style="font-size:.9rem;">Registro y cálculo de depreciación de activos fijos</p>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-5">
+    <div class="card card-dashboard">
+      <div class="card-body">
+        <div class="section-title"><i class="bi bi-plus-circle"></i><%= typeof activoEditar !== 'undefined' && activoEditar ? 'Editar Activo' : 'Nuevo Activo' %></div>
+        <form method="POST" action="/automatizacion/depreciacion/guardar">
+          <% if (typeof activoEditar !== 'undefined' && activoEditar) { %>
+            <input type="hidden" name="id" value="<%= activoEditar.id %>">
+          <% } %>
+          <div class="mb-3">
+            <label class="form-label text-muted" style="font-size:.85rem;font-weight:500;">Nombre del Activo</label>
+            <input type="text" class="form-control form-control-sm" name="nombre" required value="<%= typeof activoEditar !== 'undefined' && activoEditar ? activoEditar.nombre : '' %>" style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;">
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label text-muted" style="font-size:.85rem;font-weight:500;">Fecha Adquisición</label>
+              <input type="date" class="form-control form-control-sm" name="fecha_adquisicion" required value="<%= typeof activoEditar !== 'undefined' && activoEditar ? activoEditar.fecha_adquisicion : '' %>" style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;">
+            </div>
+            <div class="col-6">
+              <label class="form-label text-muted" style="font-size:.85rem;font-weight:500;">Vida Útil (años)</label>
+              <input type="number" class="form-control form-control-sm" name="vida_util" required min="1" value="<%= typeof activoEditar !== 'undefined' && activoEditar ? activoEditar.vida_util : '' %>" style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;">
+            </div>
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label text-muted" style="font-size:.85rem;font-weight:500;">Valor Original</label>
+              <input type="number" step="0.01" class="form-control form-control-sm" name="valor_original" required value="<%= typeof activoEditar !== 'undefined' && activoEditar ? Number(activoEditar.valor_original).toFixed(2) : '' %>" style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;">
+            </div>
+            <div class="col-6">
+              <label class="form-label text-muted" style="font-size:.85rem;font-weight:500;">Valor Residual</label>
+              <input type="number" step="0.01" class="form-control form-control-sm" name="valor_residual" value="<%= typeof activoEditar !== 'undefined' && activoEditar ? Number(activoEditar.valor_residual).toFixed(2) : '0' %>" style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;">
+            </div>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-muted" style="font-size:.85rem;font-weight:500;">Método de Depreciación</label>
+            <select class="form-select form-select-sm" name="metodo" required style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;">
+              <option value="lineal" <%= typeof activoEditar !== 'undefined' && activoEditar && activoEditar.metodo === 'lineal' ? 'selected' : '' %>>Lineal</option>
+              <option value="sda" <%= typeof activoEditar !== 'undefined' && activoEditar && activoEditar.metodo === 'sda' ? 'selected' : '' %>>SDA (Suma de Dígitos Anuales)</option>
+            </select>
+          </div>
+          <hr style="border-color:#e2e8f0;">
+          <div class="mb-3">
+            <label class="form-label text-muted" style="font-size:.85rem;font-weight:500;">Cuenta de Activo</label>
+            <select class="form-select form-select-sm" name="cuenta_activo_id" required style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;">
+              <option value="">Seleccionar cuenta de activo...</option>
+              <% if (typeof cuentas !== 'undefined' && cuentas.length) { %>
+                <% cuentas.forEach(function(c) { %>
+                  <option value="<%= c.id %>" <%= typeof activoEditar !== 'undefined' && activoEditar && activoEditar.cuenta_activo_id == c.id ? 'selected' : '' %>><%= c.codigo %> - <%= c.nombre %></option>
+                <% }); %>
+              <% } %>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-muted" style="font-size:.85rem;font-weight:500;">Cuenta de Gasto por Depreciación</label>
+            <select class="form-select form-select-sm" name="cuenta_gasto_id" required style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;">
+              <option value="">Seleccionar cuenta de gasto...</option>
+              <% if (typeof cuentas !== 'undefined' && cuentas.length) { %>
+                <% cuentas.forEach(function(c) { %>
+                  <option value="<%= c.id %>" <%= typeof activoEditar !== 'undefined' && activoEditar && activoEditar.cuenta_gasto_id == c.id ? 'selected' : '' %>><%= c.codigo %> - <%= c.nombre %></option>
+                <% }); %>
+              <% } %>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-muted" style="font-size:.85rem;font-weight:500;">Cuenta de Depreciación Acumulada</label>
+            <select class="form-select form-select-sm" name="cuenta_depreciacion_id" required style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;">
+              <option value="">Seleccionar cuenta de depreciación acumulada...</option>
+              <% if (typeof cuentas !== 'undefined' && cuentas.length) { %>
+                <% cuentas.forEach(function(c) { %>
+                  <option value="<%= c.id %>" <%= typeof activoEditar !== 'undefined' && activoEditar && activoEditar.cuenta_depreciacion_id == c.id ? 'selected' : '' %>><%= c.codigo %> - <%= c.nombre %></option>
+                <% }); %>
+              <% } %>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-sm btn-primary w-100" style="border-radius:8px;font-size:.9rem;padding:.5rem;">
+            <i class="bi bi-check-lg me-1"></i><%= typeof activoEditar !== 'undefined' && activoEditar ? 'Actualizar Activo' : 'Registrar Activo' %>
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-7">
+    <div class="card card-dashboard">
+      <div class="card-body">
+        <div class="section-title"><i class="bi bi-list"></i>Activos Registrados</div>
+        <div class="table-responsive">
+          <table class="table table-sm table-summary mb-0">
+            <thead>
+              <tr>
+                <th>Nombre</th>
+                <th class="text-end">Valor Original</th>
+                <th class="text-center">Vida Útil</th>
+                <th>Método</th>
+                <th>Última Depreciación</th>
+                <th class="text-center">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <% if (typeof activos !== 'undefined' && activos.length) { %>
+                <% activos.forEach(function(a) { %>
+                  <tr>
+                    <td class="fw-semibold"><%= a.nombre %></td>
+                    <td class="text-end fw-semibold">$<%= Number(a.valor_original).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></td>
+                    <td class="text-center"><%= a.vida_util %> años</td>
+                    <td><span class="badge" style="background:<%= a.metodo === 'lineal' ? '#eff6ff' : '#f3e8ff' %>;color:<%= a.metodo === 'lineal' ? '#1d4ed8' : '#7c3aed' %>;font-size:.8rem;"><%= a.metodo === 'lineal' ? 'Lineal' : 'SDA' %></span></td>
+                    <td><%= a.ultima_depreciacion || '—' %></td>
+                    <td class="text-center">
+                      <a href="/automatizacion/depreciacion/<%= a.id %>/calcular" class="btn btn-sm btn-outline-primary" style="border-radius:6px;padding:.2rem .5rem;font-size:.8rem;" onclick="return confirm('¿Calcular depreciación para este activo?')">
+                        <i class="bi bi-calculator me-1"></i>Calcular
+                      </a>
+                    </td>
+                  </tr>
+                <% }); %>
+              <% } else { %>
+                <tr>
+                  <td colspan="6" class="text-center text-muted py-3" style="font-size:.9rem;">No hay activos registrados</td>
+                </tr>
+              <% } %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

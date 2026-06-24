@@ -1,0 +1,276 @@
+<%- include('../partials/header', { title, path }) %>
+
+<div class="container-fluid px-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0"><i class="bi bi-journal-text"></i> <%= poliza && poliza.id ? 'Editar Póliza' : 'Nueva Póliza' %></h4>
+    <a href="/polizas" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Volver
+    </a>
+  </div>
+
+  <form action="/polizas<%= poliza && poliza.id ? '/editar/' + poliza.id : '/nueva' %>" method="POST" id="polizaForm">
+    <div class="card shadow-sm mb-4">
+      <div class="card-body">
+        <div class="row g-3">
+          <div class="col-auto">
+            <label class="form-label">Tipo</label>
+            <div>
+              <% const badgeClass = { I: 'primary', E: 'success', D: 'info', O: 'warning' }[poliza && poliza.tipo ? poliza.tipo : tipo] || 'secondary'; %>
+              <span class="badge bg-<%= badgeClass %> fs-6 px-3 py-2"><%= poliza && poliza.tipo ? poliza.tipo : tipo %></span>
+              <input type="hidden" name="tipo" value="<%= poliza && poliza.tipo ? poliza.tipo : tipo %>">
+            </div>
+          </div>
+          <div class="col-auto">
+            <label class="form-label">Número</label>
+            <input type="text" class="form-control" value="<%= poliza ? poliza.numero : numero || '' %>" readonly disabled>
+            <input type="hidden" name="numero" value="<%= poliza ? poliza.numero : numero || '' %>">
+          </div>
+          <div class="col-md-3">
+            <label for="fecha" class="form-label">Fecha <span class="text-danger">*</span></label>
+            <input type="date" class="form-control" id="fecha" name="fecha" value="<%= poliza ? poliza.fecha : '' %>" required>
+          </div>
+          <div class="col-md-6">
+            <label for="concepto" class="form-label">Concepto <span class="text-danger">*</span></label>
+            <input type="text" class="form-control" id="concepto" name="concepto" value="<%= poliza ? poliza.concepto : '' %>" required maxlength="500">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <span><strong>Detalle de la Póliza</strong></span>
+        <button type="button" class="btn btn-sm btn-success" id="agregarRenglon">
+          <i class="bi bi-plus-lg"></i> Agregar Renglón
+        </button>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-bordered align-middle mb-0" id="detalleTable">
+            <thead class="table-light">
+              <tr>
+                <th style="min-width:220px">Cuenta</th>
+                <th style="min-width:180px">Concepto</th>
+                <th class="text-end" style="min-width:120px">Debe</th>
+                <th class="text-end" style="min-width:120px">Haber</th>
+                <th style="min-width:150px">Auxiliar</th>
+                <th style="min-width:150px">Centro Costo</th>
+                <th style="min-width:150px">Departamento</th>
+                <th style="min-width:130px">Referencia</th>
+                <th class="text-center" style="width:50px"></th>
+              </tr>
+            </thead>
+            <tbody id="detalleBody">
+              <% if (detalle && detalle.length) { %>
+                <% detalle.forEach(function(d, i) { %>
+                  <tr class="detalle-row">
+                    <td>
+                      <select class="form-select form-select-sm cuenta-select" name="detalle[<%= i %>][cuenta_id]" required>
+                        <option value="">Seleccionar cuenta...</option>
+                        <% if (cuentas) { cuentas.forEach(function(c) { %>
+                          <option value="<%= c.id %>" <%= d.cuenta_id == c.id ? 'selected' : '' %>><%= c.codigo %> — <%= c.nombre %></option>
+                        <% }); } %>
+                      </select>
+                    </td>
+                    <td><input type="text" class="form-control form-control-sm" name="detalle[<%= i %>][concepto]" value="<%= d.concepto || '' %>" maxlength="500"></td>
+                    <td><input type="number" step="0.01" class="form-control form-control-sm text-end debe" name="detalle[<%= i %>][debe]" value="<%= d.debe || '0.00' %>" onchange="calcularTotales()" onkeyup="calcularTotales()"></td>
+                    <td><input type="number" step="0.01" class="form-control form-control-sm text-end haber" name="detalle[<%= i %>][haber]" value="<%= d.haber || '0.00' %>" onchange="calcularTotales()" onkeyup="calcularTotales()"></td>
+                    <td>
+                      <select class="form-select form-select-sm" name="detalle[<%= i %>][auxiliar_id]">
+                        <option value="">—</option>
+                        <% if (auxiliares) { auxiliares.forEach(function(a) { %>
+                          <option value="<%= a.id %>" <%= d.auxiliar_id == a.id ? 'selected' : '' %>><%= a.nombre %></option>
+                        <% }); } %>
+                      </select>
+                    </td>
+                    <td>
+                      <select class="form-select form-select-sm" name="detalle[<%= i %>][centro_costo_id]">
+                        <option value="">—</option>
+                        <% if (centros_costos) { centros_costos.forEach(function(cc) { %>
+                          <option value="<%= cc.id %>" <%= d.centro_costo_id == cc.id ? 'selected' : '' %>><%= cc.nombre %></option>
+                        <% }); } %>
+                      </select>
+                    </td>
+                    <td>
+                      <select class="form-select form-select-sm" name="detalle[<%= i %>][departamento_id]">
+                        <option value="">—</option>
+                        <% if (departamentos) { departamentos.forEach(function(dp) { %>
+                          <option value="<%= dp.id %>" <%= d.departamento_id == dp.id ? 'selected' : '' %>><%= dp.nombre %></option>
+                        <% }); } %>
+                      </select>
+                    </td>
+                    <td><input type="text" class="form-control form-control-sm" name="detalle[<%= i %>][referencia]" value="<%= d.referencia || '' %>" maxlength="100"></td>
+                    <td class="text-center">
+                      <button type="button" class="btn btn-sm btn-outline-danger eliminar-renglon" title="Eliminar">
+                        <i class="bi bi-x-lg"></i>
+                      </button>
+                    </td>
+                  </tr>
+                <% }) %>
+              <% } else { %>
+                <tr class="detalle-row">
+                  <td>
+                    <select class="form-select form-select-sm cuenta-select" name="detalle[0][cuenta_id]" required>
+                      <option value="">Seleccionar cuenta...</option>
+                      <% if (cuentas) { cuentas.forEach(function(c) { %>
+                        <option value="<%= c.id %>"><%= c.codigo %> — <%= c.nombre %></option>
+                      <% }); } %>
+                    </select>
+                  </td>
+                  <td><input type="text" class="form-control form-control-sm" name="detalle[0][concepto]" maxlength="500"></td>
+                  <td><input type="number" step="0.01" class="form-control form-control-sm text-end debe" name="detalle[0][debe]" value="0.00" onchange="calcularTotales()" onkeyup="calcularTotales()"></td>
+                  <td><input type="number" step="0.01" class="form-control form-control-sm text-end haber" name="detalle[0][haber]" value="0.00" onchange="calcularTotales()" onkeyup="calcularTotales()"></td>
+                  <td>
+                    <select class="form-select form-select-sm" name="detalle[0][auxiliar_id]">
+                      <option value="">—</option>
+                      <% if (auxiliares) { auxiliares.forEach(function(a) { %>
+                        <option value="<%= a.id %>"><%= a.nombre %></option>
+                      <% }); } %>
+                    </select>
+                  </td>
+                  <td>
+                    <select class="form-select form-select-sm" name="detalle[0][centro_costo_id]">
+                      <option value="">—</option>
+                      <% if (centros_costos) { centros_costos.forEach(function(cc) { %>
+                        <option value="<%= cc.id %>"><%= cc.nombre %></option>
+                      <% }); } %>
+                    </select>
+                  </td>
+                  <td>
+                    <select class="form-select form-select-sm" name="detalle[0][departamento_id]">
+                      <option value="">—</option>
+                      <% if (departamentos) { departamentos.forEach(function(dp) { %>
+                        <option value="<%= dp.id %>"><%= dp.nombre %></option>
+                      <% }); } %>
+                    </select>
+                  </td>
+                  <td><input type="text" class="form-control form-control-sm" name="detalle[0][referencia]" maxlength="100"></td>
+                  <td class="text-center">
+                    <button type="button" class="btn btn-sm btn-outline-danger eliminar-renglon" title="Eliminar">
+                      <i class="bi bi-x-lg"></i>
+                    </button>
+                  </td>
+                </tr>
+              <% } %>
+            </tbody>
+            <tfoot class="table-light">
+              <tr>
+                <th colspan="2" class="text-end">Totales</th>
+                <th class="text-end font-monospace" id="totalDebe">0.00</th>
+                <th class="text-end font-monospace" id="totalHaber">0.00</th>
+                <th colspan="4"></th>
+                <th></th>
+              </tr>
+              <tr>
+                <th colspan="2" class="text-end">Diferencia</th>
+                <th colspan="2" class="text-center font-monospace" id="diferencia">0.00</th>
+                <th colspan="4"></th>
+                <th></th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-4">
+      <button type="submit" class="btn btn-primary me-2" id="btnGuardar">
+        <i class="bi bi-floppy"></i> Guardar
+      </button>
+      <a href="/polizas" class="btn btn-outline-secondary">Cancelar</a>
+    </div>
+  </form>
+</div>
+
+<script>
+let renglonIndex = <%= (detalle && detalle.length) ? detalle.length : 1 %>;
+
+function calcularTotales() {
+  let totalDebe = 0, totalHaber = 0;
+  document.querySelectorAll('.detalle-row').forEach(function(row) {
+    const debe = parseFloat(row.querySelector('.debe').value) || 0;
+    const haber = parseFloat(row.querySelector('.haber').value) || 0;
+    totalDebe += debe;
+    totalHaber += haber;
+  });
+  const dif = totalDebe - totalHaber;
+  document.getElementById('totalDebe').textContent = totalDebe.toFixed(2);
+  document.getElementById('totalHaber').textContent = totalHaber.toFixed(2);
+  document.getElementById('diferencia').textContent = dif.toFixed(2);
+}
+
+function crearRenglon(index) {
+  const row = document.createElement('tr');
+  row.className = 'detalle-row';
+  row.innerHTML = `
+    <td>
+      <select class="form-select form-select-sm cuenta-select" name="detalle[${index}][cuenta_id]" required>
+        <option value="">Seleccionar cuenta...</option>
+        <% if (cuentas) { cuentas.forEach(function(c) { %>
+          <option value="<%= c.id %>"><%= c.codigo %> — <%= c.nombre %></option>
+        <% }); } %>
+      </select>
+    </td>
+    <td><input type="text" class="form-control form-control-sm" name="detalle[${index}][concepto]" maxlength="500"></td>
+    <td><input type="number" step="0.01" class="form-control form-control-sm text-end debe" name="detalle[${index}][debe]" value="0.00" onchange="calcularTotales()" onkeyup="calcularTotales()"></td>
+    <td><input type="number" step="0.01" class="form-control form-control-sm text-end haber" name="detalle[${index}][haber]" value="0.00" onchange="calcularTotales()" onkeyup="calcularTotales()"></td>
+    <td>
+      <select class="form-select form-select-sm" name="detalle[${index}][auxiliar_id]">
+        <option value="">—</option>
+        <% if (auxiliares) { auxiliares.forEach(function(a) { %>
+          <option value="<%= a.id %>"><%= a.nombre %></option>
+        <% }); } %>
+      </select>
+    </td>
+    <td>
+      <select class="form-select form-select-sm" name="detalle[${index}][centro_costo_id]">
+        <option value="">—</option>
+        <% if (centros_costos) { centros_costos.forEach(function(cc) { %>
+          <option value="<%= cc.id %>"><%= cc.nombre %></option>
+        <% }); } %>
+      </select>
+    </td>
+    <td>
+      <select class="form-select form-select-sm" name="detalle[${index}][departamento_id]">
+        <option value="">—</option>
+        <% if (departamentos) { departamentos.forEach(function(dp) { %>
+          <option value="<%= dp.id %>"><%= dp.nombre %></option>
+        <% }); } %>
+      </select>
+    </td>
+    <td><input type="text" class="form-control form-control-sm" name="detalle[${index}][referencia]" maxlength="100"></td>
+    <td class="text-center">
+      <button type="button" class="btn btn-sm btn-outline-danger eliminar-renglon" title="Eliminar">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </td>
+  `;
+  return row;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('agregarRenglon').addEventListener('click', function() {
+    const tbody = document.getElementById('detalleBody');
+    tbody.appendChild(crearRenglon(renglonIndex));
+    renglonIndex++;
+    calcularTotales();
+  });
+
+  document.getElementById('detalleBody').addEventListener('click', function(e) {
+    const btn = e.target.closest('.eliminar-renglon');
+    if (btn) {
+      const rows = document.querySelectorAll('.detalle-row');
+      if (rows.length > 1) {
+        btn.closest('tr').remove();
+        calcularTotales();
+      } else {
+        alert('Debe haber al menos un renglón en la póliza.');
+      }
+    }
+  });
+
+  calcularTotales();
+});
+</script>
+
+<%- include('../partials/footer') %>

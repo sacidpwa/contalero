@@ -1,0 +1,135 @@
+<%- include('../partials/header', { title, path, mes, ejercicio, empresa }) %>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h4 class="mb-1 fw-bold" style="color:#0f172a;">Mayor de Cuentas</h4>
+    <p class="text-muted mb-0" style="font-size:.9rem;">Movimientos detallados por cuenta</p>
+  </div>
+</div>
+
+<form class="card mb-4" method="GET" action="/reportes/mayor" style="border:none;border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.06);">
+  <div class="card-body d-flex align-items-end gap-3 flex-wrap">
+    <div style="min-width:280px;flex:1;">
+      <label class="form-label fw-semibold" style="font-size:.85rem;color:#334155;">Cuenta</label>
+      <select class="form-select" name="codigo" style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;">
+        <option value="">— Seleccione una cuenta —</option>
+        <% if (typeof cuentas !== 'undefined') { %>
+          <% cuentas.forEach(function(c) { %>
+            <option value="<%= c.codigo %>" <%= codigo == c.codigo ? 'selected' : '' %>><%= c.codigo %> — <%= c.nombre %></option>
+          <% }); %>
+        <% } %>
+      </select>
+    </div>
+    <div>
+      <label class="form-label fw-semibold" style="font-size:.85rem;color:#334155;">Mes</label>
+      <select class="form-select" name="mes" style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;width:auto;">
+        <% var meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']; %>
+        <% for (var i = 1; i <= 12; i++) { %>
+          <option value="<%= i %>" <%= mes == i ? 'selected' : '' %>><%= meses[i-1] %></option>
+        <% } %>
+      </select>
+    </div>
+    <div>
+      <label class="form-label fw-semibold" style="font-size:.85rem;color:#334155;">Ejercicio</label>
+      <select class="form-select" name="ejercicio" style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;width:auto;">
+        <% for (var a = 2020; a <= 2035; a++) { %>
+          <option value="<%= a %>" <%= ejercicio == a ? 'selected' : '' %>><%= a %></option>
+        <% } %>
+      </select>
+    </div>
+    <button type="submit" class="btn" style="background:#2563eb;color:#fff;border-radius:8px;padding:.45rem 1.25rem;font-size:.9rem;font-weight:500;border:none;">
+      <i class="bi bi-search me-1"></i>Consultar
+    </button>
+  </div>
+</form>
+
+<% if (typeof cuenta !== 'undefined' && cuenta) { %>
+  <div class="card mb-4" style="border:none;border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.06);">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <div class="d-flex align-items-center gap-2">
+            <span style="color:#64748b;font-size:.85rem;font-weight:500;">Código:</span>
+            <span class="fw-bold" style="color:#2563eb;font-size:1.05rem;"><%= cuenta.codigo %></span>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="d-flex align-items-center gap-2">
+            <span style="color:#64748b;font-size:.85rem;font-weight:500;">Nombre:</span>
+            <span class="fw-semibold" style="color:#0f172a;font-size:1.05rem;"><%= cuenta.nombre %></span>
+          </div>
+        </div>
+        <div class="col-md-4">
+          <div class="d-flex align-items-center gap-2">
+            <span style="color:#64748b;font-size:.85rem;font-weight:500;">Naturaleza:</span>
+            <span class="badge" style="background:<%= cuenta.naturaleza === 'D' ? '#dbeafe' : '#dcfce7' %>;color:<%= cuenta.naturaleza === 'D' ? '#1d4ed8' : '#16a34a' %>;font-size:.85rem;font-weight:600;border-radius:6px;padding:.25rem .65rem;">
+              <%= cuenta.naturaleza === 'D' ? 'Deudora' : 'Acreedora' %>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="border:none;border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.06);">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0" style="font-size:.9rem;">
+          <thead>
+            <tr style="background:#1e293b;color:#f1f5f9;">
+              <th class="ps-4 py-3" style="font-weight:500;font-size:.85rem;text-transform:uppercase;letter-spacing:.4px;">Fecha</th>
+              <th class="py-3" style="font-weight:500;font-size:.85rem;text-transform:uppercase;letter-spacing:.4px;">Tipo</th>
+              <th class="py-3" style="font-weight:500;font-size:.85rem;text-transform:uppercase;letter-spacing:.4px;">Número</th>
+              <th class="py-3" style="font-weight:500;font-size:.85rem;text-transform:uppercase;letter-spacing:.4px;">Concepto</th>
+              <th class="text-end py-3" style="font-weight:500;font-size:.85rem;text-transform:uppercase;letter-spacing:.4px;">Debe</th>
+              <th class="text-end py-3" style="font-weight:500;font-size:.85rem;text-transform:uppercase;letter-spacing:.4px;">Haber</th>
+              <th class="text-end py-3" style="font-weight:500;font-size:.85rem;text-transform:uppercase;letter-spacing:.4px;">Saldo</th>
+              <th class="text-end pe-4 py-3" style="font-weight:500;font-size:.85rem;text-transform:uppercase;letter-spacing:.4px;">Auxiliar</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% var saldoAcumulado = 0; %>
+            <% if (typeof movimientos !== 'undefined' && movimientos.length > 0) { %>
+              <% movimientos.forEach(function(m) { %>
+                <% saldoAcumulado += (m.debe || 0) - (m.haber || 0); %>
+                <tr style="border-bottom:1px solid #f1f5f9;">
+                  <td class="ps-4 py-2"><%= m.fecha %></td>
+                  <td class="py-2">
+                    <span class="badge" style="background:<%= m.tipo_poliza === 'I' ? '#dbeafe' : m.tipo_poliza === 'E' ? '#fef2f2' : m.tipo_poliza === 'D' ? '#f0fdf4' : '#fef3c7' %>;color:<%= m.tipo_poliza === 'I' ? '#1d4ed8' : m.tipo_poliza === 'E' ? '#dc2626' : m.tipo_poliza === 'D' ? '#16a34a' : '#d97706' %>;font-size:.8rem;border-radius:6px;padding:.2rem .55rem;">
+                      <%= {I:'Ingreso',E:'Egreso',D:'Diario',O:'Orden'}[m.tipo_poliza] || m.tipo_poliza %>
+                    </span>
+                  </td>
+                  <td class="py-2 fw-medium"><%= m.numero %></td>
+                  <td class="py-2" style="max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="<%= m.concepto_poliza || '' %>"><%= m.concepto_poliza || '—' %></td>
+                  <td class="text-end py-2"><%= m.debe ? '$' + Number(m.debe).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) : '—' %></td>
+                  <td class="text-end py-2"><%= m.haber ? '$' + Number(m.haber).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) : '—' %></td>
+                  <td class="text-end py-2 fw-semibold" style="color:<%= saldoAcumulado >= 0 ? '#0f172a' : '#dc2626' %>;">$<%= Number(saldoAcumulado).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></td>
+                  <td class="text-end pe-4 py-2"><%= m.auxiliar_nombre || '—' %></td>
+                </tr>
+              <% }); %>
+            <% } else { %>
+              <tr>
+                <td colspan="8" class="text-center py-4 text-muted">No hay movimientos en el período seleccionado.</td>
+              </tr>
+            <% } %>
+          </tbody>
+          <tfoot>
+            <tr style="background:#f8fafc;border-top:2px solid #e2e8f0;">
+              <td class="ps-4 py-3 fw-bold" colspan="6" style="color:#0f172a;">Saldo Final</td>
+              <td class="text-end py-3 fw-bold" colspan="2" style="color:#0f172a;">$<%= Number(saldoAcumulado).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+<% } else { %>
+  <div class="card" style="border:none;border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.06);">
+    <div class="card-body text-center py-5">
+      <i class="bi bi-inbox" style="font-size:3rem;color:#cbd5e1;"></i>
+      <p class="mt-3 text-muted">Seleccione una cuenta y presione <strong>Consultar</strong> para ver sus movimientos.</p>
+    </div>
+  </div>
+<% } %>
+
+<%- include('../partials/footer') %>

@@ -1,0 +1,193 @@
+<%- include('../partials/header', { title, path, mes, ejercicio, empresa }) %>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h4 class="mb-1 fw-bold" style="color:#0f172a;"><%= typeof poliza !== 'undefined' && poliza ? 'Editar Póliza Recurrente' : 'Nueva Póliza Recurrente' %></h4>
+    <p class="text-muted mb-0" style="font-size:.9rem;">Configure los datos de la póliza y sus renglones</p>
+  </div>
+  <a href="/automatizacion/recurrentes" class="btn btn-sm btn-outline-secondary" style="border-radius:8px;font-size:.85rem;">
+    <i class="bi bi-arrow-left me-1"></i>Volver
+  </a>
+</div>
+
+<form method="POST" action="/automatizacion/recurrentes/guardar" id="formRecurrente">
+  <% if (typeof poliza !== 'undefined' && poliza) { %>
+    <input type="hidden" name="id" value="<%= poliza.id %>">
+  <% } %>
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-4">
+      <div class="card card-dashboard h-100">
+        <div class="card-body">
+          <div class="section-title"><i class="bi bi-info-circle"></i>Datos Generales</div>
+          <div class="mb-3">
+            <label class="form-label text-muted" style="font-size:.85rem;font-weight:500;">Nombre</label>
+            <input type="text" class="form-control form-control-sm" name="nombre" required value="<%= typeof poliza !== 'undefined' && poliza ? poliza.nombre : '' %>" style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;">
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-muted" style="font-size:.85rem;font-weight:500;">Tipo de Póliza</label>
+            <select class="form-select form-select-sm" name="tipo" required style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;">
+              <option value="I" <%= typeof poliza !== 'undefined' && poliza && poliza.tipo === 'I' ? 'selected' : '' %>>Ingreso</option>
+              <option value="E" <%= typeof poliza !== 'undefined' && poliza && poliza.tipo === 'E' ? 'selected' : '' %>>Egreso</option>
+              <option value="D" <%= typeof poliza !== 'undefined' && poliza && poliza.tipo === 'D' ? 'selected' : '' %>>Diario</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-muted" style="font-size:.85rem;font-weight:500;">Periodicidad</label>
+            <select class="form-select form-select-sm" name="periodicidad" required style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;">
+              <option value="M" <%= typeof poliza !== 'undefined' && poliza && poliza.periodicidad === 'M' ? 'selected' : '' %>>Mensual</option>
+              <option value="B" <%= typeof poliza !== 'undefined' && poliza && poliza.periodicidad === 'B' ? 'selected' : '' %>>Bimestral</option>
+              <option value="T" <%= typeof poliza !== 'undefined' && poliza && poliza.periodicidad === 'T' ? 'selected' : '' %>>Trimestral</option>
+              <option value="S" <%= typeof poliza !== 'undefined' && poliza && poliza.periodicidad === 'S' ? 'selected' : '' %>>Semestral</option>
+              <option value="A" <%= typeof poliza !== 'undefined' && poliza && poliza.periodicidad === 'A' ? 'selected' : '' %>>Anual</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label text-muted" style="font-size:.85rem;font-weight:500;">Día de Ejecución</label>
+            <input type="number" class="form-control form-control-sm" name="dia" required min="1" max="31" value="<%= typeof poliza !== 'undefined' && poliza ? poliza.dia : 1 %>" style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;">
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-8">
+      <div class="card card-dashboard h-100">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="section-title mb-0"><i class="bi bi-journal-text"></i>Concepto</div>
+          </div>
+          <div class="mb-3">
+            <textarea class="form-control form-control-sm" name="concepto" rows="3" required style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;"><%= typeof poliza !== 'undefined' && poliza ? poliza.concepto : '' %></textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card card-dashboard mb-4">
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="section-title mb-0"><i class="bi bi-table"></i>Renglones</div>
+        <button type="button" class="btn btn-sm btn-outline-primary" id="agregarRenglon" style="border-radius:8px;font-size:.85rem;">
+          <i class="bi bi-plus-lg me-1"></i>Agregar Renglón
+        </button>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-sm table-summary mb-0" id="tablaRenglones">
+          <thead>
+            <tr>
+              <th style="min-width:200px;">Cuenta</th>
+              <th class="text-end" style="min-width:120px;">Debe</th>
+              <th class="text-end" style="min-width:120px;">Haber</th>
+              <th style="min-width:120px;">Auxiliar</th>
+              <th style="min-width:120px;">Centro Costo</th>
+              <th style="min-width:120px;">Departamento</th>
+              <th style="min-width:100px;">Referencia</th>
+              <th class="text-center" style="width:50px;"></th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (typeof renglones !== 'undefined' && renglones.length) { %>
+              <% renglones.forEach(function(r, idx) { %>
+                <tr class="renglon-row">
+                  <td>
+                    <select class="form-select form-select-sm" name="renglones[<%= idx %>][cuenta_id]" required style="border-radius:6px;border-color:#e2e8f0;font-size:.85rem;">
+                      <option value="">Seleccionar...</option>
+                      <% if (typeof cuentas !== 'undefined' && cuentas.length) { %>
+                        <% cuentas.forEach(function(c) { %>
+                          <option value="<%= c.id %>" <%= r.cuenta_id == c.id ? 'selected' : '' %>><%= c.codigo %> - <%= c.nombre %></option>
+                        <% }); %>
+                      <% } %>
+                    </select>
+                  </td>
+                  <td><input type="number" step="0.01" class="form-control form-control-sm" name="renglones[<%= idx %>][debe]" value="<%= r.debe %>" style="border-radius:6px;border-color:#e2e8f0;font-size:.85rem;text-align:right;"></td>
+                  <td><input type="number" step="0.01" class="form-control form-control-sm" name="renglones[<%= idx %>][haber]" value="<%= r.haber %>" style="border-radius:6px;border-color:#e2e8f0;font-size:.85rem;text-align:right;"></td>
+                  <td><input type="text" class="form-control form-control-sm" name="renglones[<%= idx %>][auxiliar]" value="<%= r.auxiliar || '' %>" style="border-radius:6px;border-color:#e2e8f0;font-size:.85rem;"></td>
+                  <td><input type="text" class="form-control form-control-sm" name="renglones[<%= idx %>][centro_costo]" value="<%= r.centro_costo || '' %>" style="border-radius:6px;border-color:#e2e8f0;font-size:.85rem;"></td>
+                  <td><input type="text" class="form-control form-control-sm" name="renglones[<%= idx %>][departamento]" value="<%= r.departamento || '' %>" style="border-radius:6px;border-color:#e2e8f0;font-size:.85rem;"></td>
+                  <td><input type="text" class="form-control form-control-sm" name="renglones[<%= idx %>][referencia]" value="<%= r.referencia || '' %>" style="border-radius:6px;border-color:#e2e8f0;font-size:.85rem;"></td>
+                  <td class="text-center">
+                    <button type="button" class="btn btn-sm btn-outline-danger eliminar-renglon" style="border-radius:6px;padding:.15rem .4rem;font-size:.8rem;line-height:1;">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </td>
+                </tr>
+              <% }); %>
+            <% } else { %>
+              <tr class="renglon-row">
+                <td>
+                  <select class="form-select form-select-sm" name="renglones[0][cuenta_id]" required style="border-radius:6px;border-color:#e2e8f0;font-size:.85rem;">
+                    <option value="">Seleccionar...</option>
+                    <% if (typeof cuentas !== 'undefined' && cuentas.length) { %>
+                      <% cuentas.forEach(function(c) { %>
+                        <option value="<%= c.id %>"><%= c.codigo %> - <%= c.nombre %></option>
+                      <% }); %>
+                    <% } %>
+                  </select>
+                </td>
+                <td><input type="number" step="0.01" class="form-control form-control-sm" name="renglones[0][debe]" style="border-radius:6px;border-color:#e2e8f0;font-size:.85rem;text-align:right;"></td>
+                <td><input type="number" step="0.01" class="form-control form-control-sm" name="renglones[0][haber]" style="border-radius:6px;border-color:#e2e8f0;font-size:.85rem;text-align:right;"></td>
+                <td><input type="text" class="form-control form-control-sm" name="renglones[0][auxiliar]" style="border-radius:6px;border-color:#e2e8f0;font-size:.85rem;"></td>
+                <td><input type="text" class="form-control form-control-sm" name="renglones[0][centro_costo]" style="border-radius:6px;border-color:#e2e8f0;font-size:.85rem;"></td>
+                <td><input type="text" class="form-control form-control-sm" name="renglones[0][departamento]" style="border-radius:6px;border-color:#e2e8f0;font-size:.85rem;"></td>
+                <td><input type="text" class="form-control form-control-sm" name="renglones[0][referencia]" style="border-radius:6px;border-color:#e2e8f0;font-size:.85rem;"></td>
+                <td class="text-center">
+                  <button type="button" class="btn btn-sm btn-outline-danger eliminar-renglon" style="border-radius:6px;padding:.15rem .4rem;font-size:.8rem;line-height:1;">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </td>
+              </tr>
+            <% } %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex justify-content-end gap-2">
+    <a href="/automatizacion/recurrentes" class="btn btn-sm btn-outline-secondary" style="border-radius:8px;font-size:.85rem;">
+      <i class="bi bi-x-lg me-1"></i>Cancelar
+    </a>
+    <button type="submit" class="btn btn-sm btn-primary" style="border-radius:8px;font-size:.85rem;padding:.4rem 1.5rem;">
+      <i class="bi bi-check-lg me-1"></i>Guardar Póliza Recurrente
+    </button>
+  </div>
+</form>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var idx = <%= typeof renglones !== 'undefined' && renglones.length ? renglones.length : 1 %>;
+
+  document.getElementById('agregarRenglon').addEventListener('click', function () {
+    var tbody = document.querySelector('#tablaRenglones tbody');
+    var row = document.createElement('tr');
+    row.className = 'renglon-row';
+    row.innerHTML = [
+      '<td><select class="form-select form-select-sm" name="renglones[' + idx + '][cuenta_id]" required style="border-radius:6px;border-color:#e2e8f0;font-size:.85rem;"><option value="">Seleccionar...',
+      <% if (typeof cuentas !== 'undefined' && cuentas.length) { %>
+        '<% cuentas.forEach(function(c) { %>' + '<option value="<%= c.id %>"><%= c.codigo %> - <%= c.nombre %></option>' + '<% }); %>',
+      <% } %>
+      '</select></td>',
+      '<td><input type="number" step="0.01" class="form-control form-control-sm" name="renglones[' + idx + '][debe]" style="border-radius:6px;border-color:#e2e8f0;font-size:.85rem;text-align:right;"></td>',
+      '<td><input type="number" step="0.01" class="form-control form-control-sm" name="renglones[' + idx + '][haber]" style="border-radius:6px;border-color:#e2e8f0;font-size:.85rem;text-align:right;"></td>',
+      '<td><input type="text" class="form-control form-control-sm" name="renglones[' + idx + '][auxiliar]" style="border-radius:6px;border-color:#e2e8f0;font-size:.85rem;"></td>',
+      '<td><input type="text" class="form-control form-control-sm" name="renglones[' + idx + '][centro_costo]" style="border-radius:6px;border-color:#e2e8f0;font-size:.85rem;"></td>',
+      '<td><input type="text" class="form-control form-control-sm" name="renglones[' + idx + '][departamento]" style="border-radius:6px;border-color:#e2e8f0;font-size:.85rem;"></td>',
+      '<td><input type="text" class="form-control form-control-sm" name="renglones[' + idx + '][referencia]" style="border-radius:6px;border-color:#e2e8f0;font-size:.85rem;"></td>',
+      '<td class="text-center"><button type="button" class="btn btn-sm btn-outline-danger eliminar-renglon" style="border-radius:6px;padding:.15rem .4rem;font-size:.8rem;line-height:1;"><i class="bi bi-trash"></i></button></td>'
+    ].join('');
+    tbody.appendChild(row);
+    idx++;
+  });
+
+  document.getElementById('tablaRenglones').addEventListener('click', function (e) {
+    if (e.target.closest('.eliminar-renglon')) {
+      var row = e.target.closest('tr');
+      if (document.querySelectorAll('.renglon-row').length > 1) {
+        row.remove();
+      }
+    }
+  });
+});
+</script>
+
+<%- include('../partials/footer') %>

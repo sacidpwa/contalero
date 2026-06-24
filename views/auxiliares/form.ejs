@@ -1,0 +1,73 @@
+<%- include('../partials/header', { title, path, mes, ejercicio, empresa }) %>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h4 class="mb-1 fw-bold" style="color:#0f172a;"><%= typeof auxiliar !== 'undefined' && auxiliar ? 'Editar Auxiliar' : 'Nuevo Auxiliar' %></h4>
+    <p class="text-muted mb-0" style="font-size:.9rem;"><%= typeof auxiliar !== 'undefined' && auxiliar ? 'Modifique los datos del auxiliar' : 'Registre un nuevo auxiliar en el sistema' %></p>
+  </div>
+</div>
+
+<div class="card" style="border:none;border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.06);max-width:800px;">
+  <div class="card-body p-4">
+    <form method="POST" action="<%= typeof auxiliar !== 'undefined' && auxiliar ? '/auxiliares/editar/' + auxiliar.id : '/auxiliares/nuevo' %>">
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label fw-semibold" style="font-size:.85rem;color:#334155;">Tipo</label>
+          <select class="form-select" name="tipo" style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;" required>
+            <option value="">— Seleccione —</option>
+            <option value="Cliente" <%= typeof auxiliar !== 'undefined' && auxiliar && auxiliar.tipo === 'Cliente' ? 'selected' : '' %>>Cliente</option>
+            <option value="Proveedor" <%= typeof auxiliar !== 'undefined' && auxiliar && auxiliar.tipo === 'Proveedor' ? 'selected' : '' %>>Proveedor</option>
+            <option value="Ambos" <%= typeof auxiliar !== 'undefined' && auxiliar && auxiliar.tipo === 'Ambos' ? 'selected' : '' %>>Ambos</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-semibold" style="font-size:.85rem;color:#334155;">Código</label>
+          <input type="text" class="form-control" name="codigo" value="<%= typeof auxiliar !== 'undefined' && auxiliar ? auxiliar.codigo : '' %>" style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;" required>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label fw-semibold" style="font-size:.85rem;color:#334155;">Nombre</label>
+          <input type="text" class="form-control" name="nombre" value="<%= typeof auxiliar !== 'undefined' && auxiliar ? auxiliar.nombre : '' %>" style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;" required>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold" style="font-size:.85rem;color:#334155;">RFC</label>
+          <input type="text" class="form-control" name="rfc" value="<%= typeof auxiliar !== 'undefined' && auxiliar ? auxiliar.rfc : '' %>" style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;text-transform:uppercase;font-family:monospace;">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold" style="font-size:.85rem;color:#334155;">CURP</label>
+          <input type="text" class="form-control" name="curp" value="<%= typeof auxiliar !== 'undefined' && auxiliar ? auxiliar.curp : '' %>" style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;text-transform:uppercase;font-family:monospace;">
+        </div>
+        <div class="col-12">
+          <label class="form-label fw-semibold" style="font-size:.85rem;color:#334155;">Dirección</label>
+          <textarea class="form-control" name="direccion" rows="3" style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;"><%= typeof auxiliar !== 'undefined' && auxiliar ? auxiliar.direccion : '' %></textarea>
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold" style="font-size:.85rem;color:#334155;">Teléfono</label>
+          <input type="text" class="form-control" name="telefono" value="<%= typeof auxiliar !== 'undefined' && auxiliar ? auxiliar.telefono : '' %>" style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label fw-semibold" style="font-size:.85rem;color:#334155;">Email</label>
+          <input type="email" class="form-control" name="email" value="<%= typeof auxiliar !== 'undefined' && auxiliar ? auxiliar.email : '' %>" style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;">
+        </div>
+        <div class="col-12">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="activo" value="1" id="checkActivo" style="border-color:#cbd5e1;border-radius:4px;" <%= typeof auxiliar === 'undefined' || (typeof auxiliar !== 'undefined' && auxiliar && auxiliar.activo) ? 'checked' : '' %>>
+            <label class="form-check-label fw-semibold" for="checkActivo" style="color:#334155;font-size:.9rem;">
+              Activo
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex gap-2 mt-4 pt-3" style="border-top:1px solid #e2e8f0;">
+        <button type="submit" class="btn" style="background:#2563eb;color:#fff;border-radius:8px;padding:.5rem 1.5rem;font-size:.9rem;font-weight:500;border:none;">
+          <i class="bi bi-floppy me-1"></i>Guardar
+        </button>
+        <a href="/auxiliares" class="btn" style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:.5rem 1.5rem;font-size:.9rem;font-weight:500;color:#475569;">
+          <i class="bi bi-x-circle me-1"></i>Cancelar
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

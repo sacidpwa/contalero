@@ -1,0 +1,44 @@
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const sidebar = document.getElementById('sidebar');
+      const overlay = document.getElementById('sidebarOverlay');
+      const toggle = document.getElementById('sidebarToggle');
+
+      function openSidebar() {
+        sidebar.classList.add('open');
+        overlay.classList.add('show');
+      }
+      function closeSidebar() {
+        sidebar.classList.remove('open');
+        overlay.classList.remove('show');
+      }
+
+      if (toggle) toggle.addEventListener('click', openSidebar);
+      if (overlay) overlay.addEventListener('click', closeSidebar);
+
+      const currentPath = window.location.pathname;
+      const currentSearch = window.location.search;
+      const currentFull = currentSearch ? currentPath + currentSearch : currentPath;
+
+      document.querySelectorAll('.sub-menu .nav-item').forEach(function (link) {
+        var href = link.getAttribute('href');
+        if (href === currentFull || href === currentPath) {
+          link.classList.add('active');
+        }
+      });
+
+      document.querySelectorAll('[data-bs-toggle="collapse"]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var expanded = this.getAttribute('aria-expanded') === 'true';
+          this.setAttribute('aria-expanded', !expanded);
+        });
+      });
+    });
+  </script>
+</body>
+</html>

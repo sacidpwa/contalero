@@ -1,0 +1,85 @@
+<%- include('../partials/header', { title, path, mes, ejercicio, empresa }) %>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h4 class="mb-1 fw-bold" style="color:#0f172a;">Balanza de Comprobación</h4>
+    <p class="text-muted mb-0" style="font-size:.9rem;">Resumen de saldos por cuenta</p>
+  </div>
+  <form class="d-flex align-items-center gap-2" method="GET" action="/reportes/balanza">
+    <div>
+      <select class="form-select form-select-sm" name="mes" style="border-radius:8px;border-color:#e2e8f0;font-size:.85rem;width:auto;">
+        <% var meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']; %>
+        <% for (var i = 1; i <= 12; i++) { %>
+          <option value="<%= i %>" <%= mes == i ? 'selected' : '' %>><%= meses[i-1] %></option>
+        <% } %>
+      </select>
+    </div>
+    <div>
+      <select class="form-select form-select-sm" name="ejercicio" style="border-radius:8px;border-color:#e2e8f0;font-size:.85rem;width:auto;">
+        <% for (var a = 2020; a <= 2035; a++) { %>
+          <option value="<%= a %>" <%= ejercicio == a ? 'selected' : '' %>><%= a %></option>
+        <% } %>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-sm btn-period"><i class="bi bi-arrow-repeat me-1"></i>Actualizar</button>
+  </form>
+</div>
+
+<div class="card" style="border:none;border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.06);">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0" style="font-size:.9rem;">
+        <thead>
+          <tr style="background:#1e293b;color:#f1f5f9;">
+            <th class="ps-4 py-3" style="font-weight:500;font-size:.85rem;text-transform:uppercase;letter-spacing:.4px;">Código</th>
+            <th class="py-3" style="font-weight:500;font-size:.85rem;text-transform:uppercase;letter-spacing:.4px;">Nombre</th>
+            <th class="text-end py-3" style="font-weight:500;font-size:.85rem;text-transform:uppercase;letter-spacing:.4px;">Debe</th>
+            <th class="text-end py-3" style="font-weight:500;font-size:.85rem;text-transform:uppercase;letter-spacing:.4px;">Haber</th>
+            <th class="text-end py-3" style="font-weight:500;font-size:.85rem;text-transform:uppercase;letter-spacing:.4px;">Saldo Deudor</th>
+            <th class="text-end pe-4 py-3" style="font-weight:500;font-size:.85rem;text-transform:uppercase;letter-spacing:.4px;">Saldo Acreedor</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% var totalDebe = 0, totalHaber = 0, totalSaldoDeudor = 0, totalSaldoAcreedor = 0; %>
+          <% if (typeof cuentas !== 'undefined' && cuentas.length > 0) { %>
+            <% cuentas.forEach(function(c) { %>
+              <% if (c.debe > 0 || c.haber > 0) { %>
+                <% var saldo = c.debe - c.haber; %>
+                <% var saldoDeudor = c.naturaleza === 'D' ? saldo : 0; %>
+                <% var saldoAcreedor = c.naturaleza === 'A' ? Math.abs(saldo) : 0; %>
+                <% totalDebe += c.debe; totalHaber += c.haber; totalSaldoDeudor += saldoDeudor; totalSaldoAcreedor += saldoAcreedor; %>
+                <tr style="border-bottom:1px solid #f1f5f9;">
+                  <td class="ps-4 py-2 fw-semibold" style="color:#2563eb;"><%= c.codigo %></td>
+                  <td class="py-2"><%= c.nombre %></td>
+                  <td class="text-end py-2 fw-medium">$<%= Number(c.debe).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></td>
+                  <td class="text-end py-2 fw-medium">$<%= Number(c.haber).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></td>
+                  <td class="text-end py-2 fw-medium" style="color:<%= saldoDeudor > 0 ? '#dc2626' : 'inherit' %>;">
+                    <% if (saldoDeudor > 0) { %>$<%= Number(saldoDeudor).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %><% } else { %>—<% } %>
+                  </td>
+                  <td class="text-end pe-4 py-2 fw-medium" style="color:<%= saldoAcreedor > 0 ? '#16a34a' : 'inherit' %>;">
+                    <% if (saldoAcreedor > 0) { %>$<%= Number(saldoAcreedor).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %><% } else { %>—<% } %>
+                  </td>
+                </tr>
+              <% } %>
+            <% }); %>
+          <% } else { %>
+            <tr>
+              <td colspan="6" class="text-center py-4 text-muted">No hay movimientos en el período seleccionado.</td>
+            </tr>
+          <% } %>
+        </tbody>
+        <tfoot>
+          <tr style="background:#f8fafc;border-top:2px solid #e2e8f0;">
+            <td class="ps-4 py-3 fw-bold" colspan="2" style="color:#0f172a;">TOTALES</td>
+            <td class="text-end py-3 fw-bold" style="color:#0f172a;">$<%= Number(totalDebe).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></td>
+            <td class="text-end py-3 fw-bold" style="color:#0f172a;">$<%= Number(totalHaber).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></td>
+            <td class="text-end py-3 fw-bold" style="color:#0f172a;">$<%= Number(totalSaldoDeudor).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></td>
+            <td class="text-end pe-4 py-3 fw-bold" style="color:#0f172a;">$<%= Number(totalSaldoAcreedor).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

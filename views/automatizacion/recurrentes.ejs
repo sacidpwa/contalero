@@ -1,0 +1,79 @@
+<%- include('../partials/header', { title, path, mes, ejercicio, empresa }) %>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h4 class="mb-1 fw-bold" style="color:#0f172a;">Pólizas Recurrentes</h4>
+    <p class="text-muted mb-0" style="font-size:.9rem;">Administración de pólizas automáticas recurrentes</p>
+  </div>
+  <a href="/automatizacion/recurrentes/nueva" class="btn btn-sm btn-primary" style="border-radius:8px;font-size:.85rem;">
+    <i class="bi bi-plus-lg me-1"></i>Nueva Póliza Recurrente
+  </a>
+</div>
+
+<% if (typeof success !== 'undefined' && success) { %>
+  <div class="alert alert-success alert-dismissible fade show d-flex align-items-center gap-2 py-2" style="border-radius:10px;border:none;font-size:.9rem;" role="alert">
+    <i class="bi bi-check-circle-fill"></i><%= success %>
+    <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" style="font-size:.8rem;"></button>
+  </div>
+<% } %>
+<% if (typeof error !== 'undefined' && error) { %>
+  <div class="alert alert-danger alert-dismissible fade show d-flex align-items-center gap-2 py-2" style="border-radius:10px;border:none;font-size:.9rem;" role="alert">
+    <i class="bi bi-exclamation-triangle-fill"></i><%= error %>
+    <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" style="font-size:.8rem;"></button>
+  </div>
+<% } %>
+
+<div class="card card-dashboard">
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-sm table-summary mb-0">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Tipo</th>
+            <th>Periodicidad</th>
+            <th class="text-center">Día</th>
+            <th>Última Generación</th>
+            <th class="text-center">Activo</th>
+            <th class="text-center">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (typeof recurrentes !== 'undefined' && recurrentes.length) { %>
+            <% recurrentes.forEach(function(r) { %>
+              <tr>
+                <td class="fw-semibold"><%= r.nombre %></td>
+                <td>
+                  <span class="badge" style="background:<%= r.tipo === 'I' ? '#dbeafe' : r.tipo === 'E' ? '#fef2f2' : '#f3e8ff' %>;color:<%= r.tipo === 'I' ? '#1d4ed8' : r.tipo === 'E' ? '#dc2626' : '#7c3aed' %>;font-size:.8rem;">
+                    <%= {I:'Ingreso',E:'Egreso',D:'Diario'}[r.tipo] || r.tipo %>
+                  </span>
+                </td>
+                <td><%= {M:'Mensual',B:'Bimestral',T:'Trimestral',S:'Semestral',A:'Anual'}[r.periodicidad] || r.periodicidad %></td>
+                <td class="text-center"><%= r.dia %></td>
+                <td><%= r.ultima_generacion ? r.ultima_generacion : '—' %></td>
+                <td class="text-center">
+                  <% if (r.activo) { %>
+                    <span class="badge bg-success" style="font-size:.8rem;font-weight:500;">Sí</span>
+                  <% } else { %>
+                    <span class="badge bg-secondary" style="font-size:.8rem;font-weight:500;">No</span>
+                  <% } %>
+                </td>
+                <td class="text-center">
+                  <a href="/automatizacion/recurrentes/<%= r.id %>/ejecutar" class="btn btn-sm btn-outline-primary" style="border-radius:6px;padding:.2rem .5rem;font-size:.8rem;" title="Ejecutar Ahora" onclick="return confirm('¿Ejecutar esta póliza recurrente ahora?')">
+                    <i class="bi bi-play-fill"></i> Ejecutar Ahora
+                  </a>
+                </td>
+              </tr>
+            <% }); %>
+          <% } else { %>
+            <tr>
+              <td colspan="7" class="text-center text-muted py-3" style="font-size:.9rem;">No hay pólizas recurrentes registradas</td>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

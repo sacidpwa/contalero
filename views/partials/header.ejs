@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> | Sistema Contable</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #f1f5f9; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; overflow-x: hidden; }
+    .wrapper { display: flex; min-height: 100vh; }
+
+    .sidebar { width: 260px; background: #0f172a; color: #94a3b8; flex-shrink: 0; display: flex; flex-direction: column; transition: margin-left .3s ease; z-index: 1040; }
+    .sidebar-brand { padding: 1rem 1.25rem; border-bottom: 1px solid rgba(255,255,255,.06); }
+    .sidebar-brand h5 { color: #f1f5f9; font-weight: 700; letter-spacing: .3px; font-size: 1.05rem; }
+    .sidebar-brand h5 i { color: #3b82f6; }
+    .sidebar-menu { padding: .5rem 0; flex: 1; overflow-y: auto; }
+    .sidebar-menu::-webkit-scrollbar { width: 4px; }
+    .sidebar-menu::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+    .sidebar .nav-item { display: flex; align-items: center; padding: .45rem 1rem .45rem 1.25rem; color: #64748b; text-decoration: none; font-size: .9rem; transition: all .15s; cursor: pointer; border-left: 3px solid transparent; gap: .75rem; }
+    .sidebar .nav-item i { font-size: 1.1rem; width: 20px; text-align: center; flex-shrink: 0; }
+    .sidebar .nav-item:hover { background: rgba(255,255,255,.04); color: #e2e8f0; }
+    .sidebar .nav-item.active { background: rgba(59,130,246,.12); color: #60a5fa; border-left-color: #3b82f6; }
+    .sidebar .nav-item .chevron { margin-left: auto; font-size: .75rem; transition: transform .2s; }
+    .sidebar .nav-item[aria-expanded="true"] .chevron { transform: rotate(90deg); }
+    .sidebar .sub-menu { background: rgba(0,0,0,.15); }
+    .sidebar .sub-menu .nav-item { padding-left: 3rem; font-size: .85rem; border-left: none; }
+    .sidebar .sub-menu .nav-item:hover { background: rgba(255,255,255,.04); }
+    .sidebar .sub-menu .nav-item.active { background: rgba(59,130,246,.1); color: #60a5fa; }
+    .sidebar-footer { padding: .75rem 1.25rem; border-top: 1px solid rgba(255,255,255,.06); font-size: .8rem; color: #475569; text-align: center; }
+
+    .main-content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .topbar { background: #fff; border-bottom: 1px solid #e2e8f0; padding: .65rem 1.5rem; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 1030; }
+    .topbar-left { display: flex; align-items: center; gap: .75rem; }
+    .topbar-left .empresa-name { font-weight: 600; color: #334155; font-size: .95rem; }
+    .topbar-right { display: flex; align-items: center; gap: 1rem; }
+    .period-badge { background: #eff6ff; color: #1d4ed8; border-radius: 20px; padding: .25rem .85rem; font-size: .82rem; font-weight: 500; display: flex; align-items: center; gap: .4rem; }
+    .period-badge i { font-size: .85rem; }
+    .user-dropdown .dropdown-toggle { background: none; border: none; color: #334155; font-weight: 500; font-size: .9rem; display: flex; align-items: center; gap: .5rem; padding: .25rem .5rem; border-radius: 8px; }
+    .user-dropdown .dropdown-toggle:hover { background: #f1f5f9; }
+    .user-dropdown .dropdown-toggle::after { display: none; }
+    .user-avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg,#3b82f6,#8b5cf6); color: #fff; display: flex; align-items: center; justify-content: center; font-size: .85rem; font-weight: 600; }
+    .content-wrapper { padding: 1.5rem; flex: 1; }
+
+    .card-dashboard { border: none; border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,.06); transition: transform .15s, box-shadow .15s; }
+    .card-dashboard:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,.08); }
+    .card-dashboard .card-body { padding: 1.25rem 1.5rem; }
+    .stat-icon { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; }
+    .stat-label { color: #64748b; font-size: .85rem; font-weight: 500; text-transform: uppercase; letter-spacing: .3px; }
+    .stat-value { font-size: 1.75rem; font-weight: 700; color: #0f172a; line-height: 1.2; }
+    .chart-container { position: relative; height: 300px; width: 100%; }
+    .section-title { font-size: 1.1rem; font-weight: 600; color: #0f172a; margin-bottom: 1rem; display: flex; align-items: center; gap: .5rem; }
+    .section-title i { color: #3b82f6; }
+    .table-summary { border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    .table-summary thead th { background: #1e293b; color: #f1f5f9; font-weight: 500; font-size: .85rem; text-transform: uppercase; letter-spacing: .4px; padding: .75rem 1rem; border: none; }
+    .table-summary tbody td { padding: .65rem 1rem; font-size: .9rem; vertical-align: middle; }
+    .table-summary tbody tr:last-child td { border-bottom: none; }
+    .table-summary .total-row { background: #f8fafc; font-weight: 600; }
+    .table-summary .total-row td { border-top: 2px solid #e2e8f0; }
+
+    .btn-period { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: .35rem .75rem; font-size: .85rem; color: #475569; transition: all .15s; }
+    .btn-period:hover { background: #f8fafc; border-color: #cbd5e1; }
+
+    .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 1035; }
+
+    @media (max-width: 991.98px) {
+      .sidebar { position: fixed; top: 0; left: 0; bottom: 0; margin-left: -260px; }
+      .sidebar.open { margin-left: 0; }
+      .sidebar-overlay.show { display: block; }
+    }
+  </style>
+</head>
+<body>
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+  <div class="wrapper">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-brand">
+        <h5 class="mb-0"><i class="bi bi-calculator-fill me-2"></i>Contabilidad</h5>
+      </div>
+      <div class="sidebar-menu">
+        <a href="/dashboard" class="nav-item<%= path === '/dashboard' ? ' active' : '' %>">
+          <i class="bi bi-speedometer2"></i><span>Dashboard</span>
+        </a>
+        <a href="/catalogo" class="nav-item<%= path === '/catalogo' ? ' active' : '' %>">
+          <i class="bi bi-book"></i><span>Catálogo de Cuentas</span>
+        </a>
+
+        <div class="nav-item" data-bs-toggle="collapse" data-bs-target="#menuPolizas" role="button"
+          <%= (path === '/polizas' || path.startsWith('/polizas')) ? ' aria-expanded="true"' : '' %>>
+          <i class="bi bi-journal-text"></i><span>Pólizas</span><i class="bi bi-chevron-right chevron"></i>
+        </div>
+        <div class="collapse sub-menu<%= path.startsWith('/polizas') ? ' show' : '' %>" id="menuPolizas">
+          <a href="/polizas?tipo=I" class="nav-item" data-query="tipo=I"><i class="bi bi-dot"></i>Ingreso</a>
+          <a href="/polizas?tipo=E" class="nav-item" data-query="tipo=E"><i class="bi bi-dot"></i>Egreso</a>
+          <a href="/polizas?tipo=D" class="nav-item" data-query="tipo=D"><i class="bi bi-dot"></i>Diario</a>
+          <a href="/polizas?tipo=O" class="nav-item" data-query="tipo=O"><i class="bi bi-dot"></i>Orden</a>
+          <a href="/polizas" class="nav-item" data-query=""><i class="bi bi-dot"></i>Todas</a>
+        </div>
+
+        <div class="nav-item" data-bs-toggle="collapse" data-bs-target="#menuReportes" role="button"
+          <%= path.startsWith('/reportes') ? ' aria-expanded="true"' : '' %>>
+          <i class="bi bi-file-earmark-bar-graph"></i><span>Reportes</span><i class="bi bi-chevron-right chevron"></i>
+        </div>
+        <div class="collapse sub-menu<%= path.startsWith('/reportes') ? ' show' : '' %>" id="menuReportes">
+          <a href="/reportes/balanza" class="nav-item<%= path === '/reportes/balanza' ? ' active' : '' %>"><i class="bi bi-dot"></i>Balanza de Comprobación</a>
+          <a href="/reportes/mayor" class="nav-item<%= path === '/reportes/mayor' ? ' active' : '' %>"><i class="bi bi-dot"></i>Mayor</a>
+          <a href="/reportes/resultados" class="nav-item<%= path === '/reportes/resultados' ? ' active' : '' %>"><i class="bi bi-dot"></i>Estado de Resultados</a>
+          <a href="/reportes/balance" class="nav-item<%= path === '/reportes/balance' ? ' active' : '' %>"><i class="bi bi-dot"></i>Balance General</a>
+        </div>
+
+        <a href="/auxiliares" class="nav-item<%= path === '/auxiliares' ? ' active' : '' %>">
+          <i class="bi bi-people"></i><span>Auxiliares</span>
+        </a>
+        <a href="/iva" class="nav-item<%= path === '/iva' ? ' active' : '' %>">
+          <i class="bi bi-receipt"></i><span>IVA</span>
+        </a>
+
+        <div class="nav-item" data-bs-toggle="collapse" data-bs-target="#menuPresupuestos" role="button"
+          <%= path.startsWith('/presupuestos') ? ' aria-expanded="true"' : '' %>>
+          <i class="bi bi-pie-chart"></i><span>Presupuestos</span><i class="bi bi-chevron-right chevron"></i>
+        </div>
+        <div class="collapse sub-menu<%= path.startsWith('/presupuestos') ? ' show' : '' %>" id="menuPresupuestos">
+          <a href="/presupuestos" class="nav-item<%= path === '/presupuestos' ? ' active' : '' %>"><i class="bi bi-dot"></i>Presupuestos</a>
+          <a href="/presupuestos/vs-real" class="nav-item<%= path === '/presupuestos/vs-real' ? ' active' : '' %>"><i class="bi bi-dot"></i>vs Real</a>
+        </div>
+
+        <div class="nav-item" data-bs-toggle="collapse" data-bs-target="#menuAutomatizacion" role="button"
+          <%= path.startsWith('/automatizacion') ? ' aria-expanded="true"' : '' %>>
+          <i class="bi bi-gear-wide-connected"></i><span>Automatización</span><i class="bi bi-chevron-right chevron"></i>
+        </div>
+        <div class="collapse sub-menu<%= path.startsWith('/automatizacion') ? ' show' : '' %>" id="menuAutomatizacion">
+          <a href="/automatizacion/recurrentes" class="nav-item<%= path === '/automatizacion/recurrentes' ? ' active' : '' %>"><i class="bi bi-dot"></i>Recurrentes</a>
+          <a href="/automatizacion/depreciacion" class="nav-item<%= path === '/automatizacion/depreciacion' ? ' active' : '' %>"><i class="bi bi-dot"></i>Depreciación</a>
+          <a href="/automatizacion/loop-automatico" class="nav-item<%= path === '/automatizacion/loop-automatico' ? ' active' : '' %>"><i class="bi bi-dot"></i>Loop Automático</a>
+        </div>
+
+        <a href="/config" class="nav-item<%= path === '/config' ? ' active' : '' %>">
+          <i class="bi bi-gear"></i><span>Configuración</span>
+        </a>
+      </div>
+      <div class="sidebar-footer">Sistema Contable v1.0</div>
+    </aside>
+
+    <div class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="btn btn-sm btn-outline-secondary d-lg-none" id="sidebarToggle" style="border:none;color:#64748b;font-size:1.25rem;padding:0;line-height:1;">
+            <i class="bi bi-list"></i>
+          </button>
+          <span class="empresa-name"><i class="bi bi-building me-1"></i><%= typeof empresa !== 'undefined' ? empresa : 'Mi Empresa' %></span>
+        </div>
+        <div class="topbar-right">
+          <div class="period-badge">
+            <i class="bi bi-calendar3"></i>
+            <span>Período <%= mes %> / <%= ejercicio %></span>
+          </div>
+          <div class="dropdown user-dropdown">
+            <button class="dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+              <div class="user-avatar">A</div>
+              <span class="d-none d-sm-inline">Administrador</span>
+              <i class="bi bi-chevron-down ms-1" style="font-size:.7rem;"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end shadow-sm" style="border-radius:10px;border:1px solid #e2e8f0;min-width:200px;">
+              <li><h6 class="dropdown-header"><i class="bi bi-person-circle me-1"></i>Administrador</h6></li>
+              <li><a class="dropdown-item" href="/config"><i class="bi bi-gear me-2"></i>Configuración</a></li>
+              <li><hr class="dropdown-divider"></li>
+              <li><a class="dropdown-item text-danger" href="/logout"><i class="bi bi-box-arrow-right me-2"></i>Cerrar Sesión</a></li>
+            </ul>
+          </div>
+        </div>
+      </header>
+      <div class="content-wrapper">

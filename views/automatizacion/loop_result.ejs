@@ -1,0 +1,54 @@
+<%- include('../partials/header', { title, path, mes, ejercicio, empresa }) %>
+
+<div class="row justify-content-center mt-4">
+  <div class="col-lg-6">
+    <div class="card card-dashboard text-center">
+      <div class="card-body py-5">
+        <div class="mb-4">
+          <div class="d-inline-flex align-items-center justify-content-center" style="width:80px;height:80px;border-radius:50%;background:#f0fdf4;color:#16a34a;">
+            <i class="bi bi-check-circle" style="font-size:2.5rem;"></i>
+          </div>
+        </div>
+        <h4 class="fw-bold mb-2" style="color:#0f172a;">Loop Automático</h4>
+        <p class="text-muted mb-4" style="font-size:.9rem;">Proceso de automatización completado exitosamente</p>
+
+        <div class="row g-3 mb-4">
+          <div class="col-4">
+            <div class="p-3 rounded-3" style="background:#f8fafc;">
+              <div class="text-muted" style="font-size:.8rem;font-weight:500;">Pólizas Generadas</div>
+              <div class="fw-bold" style="font-size:1.5rem;color:#0f172a;"><%= generadas %></div>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="p-3 rounded-3" style="background:#f8fafc;">
+              <div class="text-muted" style="font-size:.8rem;font-weight:500;">Errores</div>
+              <div class="fw-bold" style="font-size:1.5rem;color:<%= errores > 0 ? '#dc2626' : '#16a34a' %>;"><%= errores %></div>
+            </div>
+          </div>
+          <div class="col-4">
+            <div class="p-3 rounded-3" style="background:#f8fafc;">
+              <div class="text-muted" style="font-size:.8rem;font-weight:500;">Período</div>
+              <div class="fw-bold" style="font-size:1.5rem;color:#0f172a;"><%= mes %>/<%= ejercicio %></div>
+            </div>
+          </div>
+        </div>
+
+        <% if (errores === 0) { %>
+          <div class="alert alert-success d-flex align-items-center gap-2 py-2" style="border-radius:10px;border:none;font-size:.9rem;">
+            <i class="bi bi-check-circle-fill"></i>Todas las pólizas se generaron correctamente
+          </div>
+        <% } else { %>
+          <div class="alert alert-warning d-flex align-items-center gap-2 py-2" style="border-radius:10px;border:none;font-size:.9rem;">
+            <i class="bi bi-exclamation-triangle-fill"></i><%= errores %> error(es) durante la generación. Revise los detalles.
+          </div>
+        <% } %>
+
+        <a href="/polizas?mes=<%= mes %>&ejercicio=<%= ejercicio %>" class="btn btn-primary mt-3" style="border-radius:8px;font-size:.9rem;padding:.5rem 2rem;">
+          <i class="bi bi-journal-text me-2"></i>Ver Pólizas Generadas
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

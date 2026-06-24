@@ -1,0 +1,159 @@
+<%- include('../partials/header', { title, path, mes, ejercicio, empresa }) %>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h4 class="mb-1 fw-bold" style="color:#0f172a;">Balance General</h4>
+    <p class="text-muted mb-0" style="font-size:.9rem;">Al <%= diasMes %> de <%= meses[mes-1] %> de <%= ejercicio %></p>
+  </div>
+  <form class="d-flex align-items-center gap-2" method="GET" action="/reportes/balance">
+    <div>
+      <select class="form-select form-select-sm" name="mes" style="border-radius:8px;border-color:#e2e8f0;font-size:.85rem;width:auto;">
+        <% for (var i = 1; i <= 12; i++) { %>
+          <option value="<%= i %>" <%= mes == i ? 'selected' : '' %>><%= meses[i-1] %></option>
+        <% } %>
+      </select>
+    </div>
+    <div>
+      <select class="form-select form-select-sm" name="ejercicio" style="border-radius:8px;border-color:#e2e8f0;font-size:.85rem;width:auto;">
+        <% for (var a = 2020; a <= 2035; a++) { %>
+          <option value="<%= a %>" <%= ejercicio == a ? 'selected' : '' %>><%= a %></option>
+        <% } %>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-sm btn-period"><i class="bi bi-arrow-repeat me-1"></i>Actualizar</button>
+  </form>
+</div>
+
+<div class="row g-4">
+  <div class="col-lg-6">
+    <div class="card h-100" style="border:none;border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.06);">
+      <div class="card-body p-4">
+        <h5 class="fw-bold mb-3 pb-2" style="color:#2563eb;border-bottom:2px solid #2563eb;">
+          <i class="bi bi-box me-1"></i>ACTIVO
+        </h5>
+
+        <div class="mb-3">
+          <h6 class="fw-semibold mb-2" style="color:#475569;font-size:.9rem;">Circulante</h6>
+          <% if (typeof activoCirculante !== 'undefined' && activoCirculante.length > 0) { %>
+            <% activoCirculante.forEach(function(c) { %>
+              <div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f1f5f9;">
+                <span style="font-size:.88rem;color:#334155;padding-left:1rem;"><%= c.codigo %> — <%= c.nombre %></span>
+                <span class="fw-medium" style="font-size:.88rem;">$<%= Number(c.saldo).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></span>
+              </div>
+            <% }); %>
+          <% } %>
+          <div class="d-flex justify-content-between align-items-center py-1 fw-bold" style="border-top:1px solid #cbd5e1;margin-top:4px;">
+            <span style="padding-left:1rem;">Total Circulante</span>
+            <span>$<%= Number(totalActivoCirculante).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></span>
+          </div>
+        </div>
+
+        <div>
+          <h6 class="fw-semibold mb-2" style="color:#475569;font-size:.9rem;">No Circulante</h6>
+          <% if (typeof activoNoCirculante !== 'undefined' && activoNoCirculante.length > 0) { %>
+            <% activoNoCirculante.forEach(function(c) { %>
+              <div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f1f5f9;">
+                <span style="font-size:.88rem;color:#334155;padding-left:1rem;"><%= c.codigo %> — <%= c.nombre %></span>
+                <span class="fw-medium" style="font-size:.88rem;">$<%= Number(c.saldo).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></span>
+              </div>
+            <% }); %>
+          <% } %>
+          <div class="d-flex justify-content-between align-items-center py-1 fw-bold" style="border-top:1px solid #cbd5e1;margin-top:4px;">
+            <span style="padding-left:1rem;">Total No Circulante</span>
+            <span>$<%= Number(totalActivoNoCirculante).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></span>
+          </div>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mt-3 pt-3 fw-bold" style="border-top:2px solid #2563eb;color:#2563eb;font-size:1.1rem;">
+          <span>Total Activo</span>
+          <span>$<%= Number(totalActivo).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card h-100" style="border:none;border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.06);">
+      <div class="card-body p-4">
+        <h5 class="fw-bold mb-3 pb-2" style="color:#9333ea;border-bottom:2px solid #9333ea;">
+          <i class="bi bi-credit-card me-1"></i>PASIVO
+        </h5>
+
+        <div class="mb-3">
+          <h6 class="fw-semibold mb-2" style="color:#475569;font-size:.9rem;">Circulante</h6>
+          <% if (typeof pasivoCirculante !== 'undefined' && pasivoCirculante.length > 0) { %>
+            <% pasivoCirculante.forEach(function(c) { %>
+              <div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f1f5f9;">
+                <span style="font-size:.88rem;color:#334155;padding-left:1rem;"><%= c.codigo %> — <%= c.nombre %></span>
+                <span class="fw-medium" style="font-size:.88rem;">$<%= Number(c.saldo).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></span>
+              </div>
+            <% }); %>
+          <% } %>
+          <div class="d-flex justify-content-between align-items-center py-1 fw-bold" style="border-top:1px solid #cbd5e1;margin-top:4px;">
+            <span style="padding-left:1rem;">Total Circulante</span>
+            <span>$<%= Number(totalPasivoCirculante).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></span>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <h6 class="fw-semibold mb-2" style="color:#475569;font-size:.9rem;">No Circulante</h6>
+          <% if (typeof pasivoNoCirculante !== 'undefined' && pasivoNoCirculante.length > 0) { %>
+            <% pasivoNoCirculante.forEach(function(c) { %>
+              <div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f1f5f9;">
+                <span style="font-size:.88rem;color:#334155;padding-left:1rem;"><%= c.codigo %> — <%= c.nombre %></span>
+                <span class="fw-medium" style="font-size:.88rem;">$<%= Number(c.saldo).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></span>
+              </div>
+            <% }); %>
+          <% } %>
+          <div class="d-flex justify-content-between align-items-center py-1 fw-bold" style="border-top:1px solid #cbd5e1;margin-top:4px;">
+            <span style="padding-left:1rem;">Total No Circulante</span>
+            <span>$<%= Number(totalPasivoNoCirculante).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></span>
+          </div>
+        </div>
+
+        <div>
+          <h5 class="fw-bold mb-3 pb-2" style="color:#ca8a04;border-bottom:2px solid #ca8a04;">
+            <i class="bi bi-piggy-bank me-1"></i>CAPITAL CONTABLE
+          </h5>
+          <% if (typeof capital !== 'undefined' && capital.length > 0) { %>
+            <% capital.forEach(function(c) { %>
+              <div class="d-flex justify-content-between align-items-center py-1" style="border-bottom:1px solid #f1f5f9;">
+                <span style="font-size:.88rem;color:#334155;padding-left:1rem;"><%= c.codigo %> — <%= c.nombre %></span>
+                <span class="fw-medium" style="font-size:.88rem;">$<%= Number(c.saldo).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></span>
+              </div>
+            <% }); %>
+          <% } %>
+          <div class="d-flex justify-content-between align-items-center py-1 fw-bold" style="border-bottom:1px solid #f1f5f9;">
+            <span style="padding-left:1rem;">Utilidad del Ejercicio</span>
+            <span style="color:<%= utilidadNeta >= 0 ? '#16a34a' : '#dc2626' %>;">$<%= Number(utilidadNeta).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></span>
+          </div>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mt-3 pt-3 fw-bold" style="border-top:2px solid #9333ea;color:#9333ea;font-size:1.1rem;">
+          <span>Total Pasivo + Capital</span>
+          <span>$<%= Number(totalPasivoCapital).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row mt-4">
+  <div class="col-12">
+    <div class="card" style="border:none;border-radius:14px;box-shadow:0 1px 3px rgba(0,0,0,.06);">
+      <div class="card-body py-3 px-4 d-flex justify-content-between align-items-center">
+        <span class="fw-bold" style="font-size:1.1rem;color:#0f172a;">
+          <i class="bi bi-check-circle me-2" style="color:#16a34a;"></i>Total Activo
+        </span>
+        <span class="fw-bold" style="font-size:1.1rem;color:#0f172a;">$<%= Number(totalActivo).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></span>
+        <span class="text-muted" style="font-size:1.1rem;">=</span>
+        <span class="fw-bold" style="font-size:1.1rem;color:#0f172a;">
+          <i class="bi bi-credit-card me-2" style="color:#9333ea;"></i>Total Pasivo + Capital
+        </span>
+        <span class="fw-bold" style="font-size:1.1rem;color:#0f172a;">$<%= Number(totalPasivoCapital).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

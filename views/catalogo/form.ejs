@@ -1,0 +1,68 @@
+<%- include('../partials/header', { title, path }) %>
+
+<div class="container-fluid px-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0"><i class="bi bi-book"></i> <%= cuenta && cuenta.id ? 'Editar Cuenta' : 'Nueva Cuenta' %></h4>
+    <a href="/catalogo" class="btn btn-outline-secondary">
+      <i class="bi bi-arrow-left"></i> Volver
+    </a>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <form action="/catalogo<%= cuenta && cuenta.id ? '/editar/' + cuenta.id : '/nueva' %>" method="POST" class="row g-3">
+        <div class="col-md-4">
+          <label for="codigo" class="form-label">Código <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="codigo" name="codigo" value="<%= cuenta ? cuenta.codigo : '' %>" required maxlength="20" placeholder="Ej: 1.01.01">
+        </div>
+
+        <div class="col-md-8">
+          <label for="nombre" class="form-label">Nombre <span class="text-danger">*</span></label>
+          <input type="text" class="form-control" id="nombre" name="nombre" value="<%= cuenta ? cuenta.nombre : '' %>" required maxlength="255" placeholder="Nombre de la cuenta">
+        </div>
+
+        <div class="col-md-3">
+          <label for="nivel" class="form-label">Nivel <span class="text-danger">*</span></label>
+          <input type="number" class="form-control" id="nivel" name="nivel" value="<%= cuenta ? cuenta.nivel : '1' %>" min="1" max="9" required>
+        </div>
+
+        <div class="col-md-3">
+          <label for="naturaleza" class="form-label">Naturaleza <span class="text-danger">*</span></label>
+          <select class="form-select" id="naturaleza" name="naturaleza" required>
+            <option value="Deudora" <%= cuenta && cuenta.naturaleza === 'Deudora' ? 'selected' : '' %>>Deudora</option>
+            <option value="Acreedora" <%= cuenta && cuenta.naturaleza === 'Acreedora' ? 'selected' : '' %>>Acreedora</option>
+          </select>
+        </div>
+
+        <div class="col-md-3">
+          <label for="tipo_sat" class="form-label">Tipo SAT</label>
+          <select class="form-select" id="tipo_sat" name="tipo_sat">
+            <option value="N/A" <%= cuenta && cuenta.tipo_sat === 'N/A' ? 'selected' : '' %>>N/A</option>
+            <option value="Deudora" <%= cuenta && cuenta.tipo_sat === 'Deudora' ? 'selected' : '' %>>Deudora</option>
+            <option value="Acreedora" <%= cuenta && cuenta.tipo_sat === 'Acreedora' ? 'selected' : '' %>>Acreedora</option>
+          </select>
+        </div>
+
+        <div class="col-md-3 d-flex align-items-end gap-4 pb-2">
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="acepta_movimientos" name="acepta_movimientos" value="1" <%= cuenta && cuenta.acepta_movimientos ? 'checked' : '' %>>
+            <label class="form-check-label" for="acepta_movimientos">Acepta Movimientos</label>
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="centro_costos" name="centro_costos" value="1" <%= cuenta && cuenta.centro_costos ? 'checked' : '' %>>
+            <label class="form-check-label" for="centro_costos">Centro de Costos</label>
+          </div>
+        </div>
+
+        <div class="col-12 border-top pt-3 mt-3">
+          <button type="submit" class="btn btn-primary me-2">
+            <i class="bi bi-floppy"></i> Guardar
+          </button>
+          <a href="/catalogo" class="btn btn-outline-secondary">Cancelar</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

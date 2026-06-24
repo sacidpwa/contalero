@@ -1,0 +1,218 @@
+<%- include('partials/header', { title, path, mes, ejercicio, empresa }) %>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h4 class="mb-1 fw-bold" style="color:#0f172a;">Dashboard</h4>
+    <p class="text-muted mb-0" style="font-size:.9rem;">Resumen general del período</p>
+  </div>
+  <form class="d-flex align-items-center gap-2" method="GET" action="/dashboard">
+    <div>
+      <select class="form-select form-select-sm" name="mes" style="border-radius:8px;border-color:#e2e8f0;font-size:.85rem;width:auto;">
+        <% var meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']; %>
+        <% for (var i = 1; i <= 12; i++) { %>
+          <option value="<%= i %>" <%= mes == i ? 'selected' : '' %>><%= meses[i-1] %></option>
+        <% } %>
+      </select>
+    </div>
+    <div>
+      <select class="form-select form-select-sm" name="ejercicio" style="border-radius:8px;border-color:#e2e8f0;font-size:.85rem;width:auto;">
+        <% for (var a = 2020; a <= 2035; a++) { %>
+          <option value="<%= a %>" <%= ejercicio == a ? 'selected' : '' %>><%= a %></option>
+        <% } %>
+      </select>
+    </div>
+    <button type="submit" class="btn btn-sm btn-period"><i class="bi bi-arrow-repeat me-1"></i>Actualizar</button>
+  </form>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4">
+    <div class="card card-dashboard">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="stat-icon" style="background:#eff6ff;color:#2563eb;"><i class="bi bi-book"></i></div>
+        <div>
+          <div class="stat-label">Total Cuentas</div>
+          <div class="stat-value"><%= totalCuentas %></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card card-dashboard">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="stat-icon" style="background:#fef2f2;color:#dc2626;"><i class="bi bi-journal-text"></i></div>
+        <div>
+          <div class="stat-label">Pólizas del Mes</div>
+          <div class="stat-value"><%= totalPolizas %></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-4">
+    <div class="card card-dashboard">
+      <div class="card-body d-flex align-items-center gap-3">
+        <div class="stat-icon" style="background:#f0fdf4;color:#16a34a;"><i class="bi bi-people"></i></div>
+        <div>
+          <div class="stat-label">Auxiliares</div>
+          <div class="stat-value"><%= totalAuxiliares %></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-8">
+    <div class="card card-dashboard">
+      <div class="card-body">
+        <div class="section-title"><i class="bi bi-graph-up-arrow"></i>Ingresos vs Egresos <span class="text-muted fw-normal" style="font-size:.85rem;">— Ejercicio <%= ejercicio %></span></div>
+        <div class="chart-container">
+          <canvas id="chartIngresosEgresos"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4 d-flex flex-column gap-3">
+    <div class="card card-dashboard flex-fill">
+      <div class="card-body">
+        <div class="section-title"><i class="bi bi-file-earmark-text"></i>Estado de Resultados</div>
+        <table class="table table-sm table-borderless table-summary">
+          <thead>
+            <tr><th>Concepto</th><th class="text-end">Importe</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span style="color:#16a34a;"><i class="bi bi-arrow-up-circle-fill me-1"></i>Ingresos</span></td>
+              <td class="text-end fw-semibold">$<%= Number(er.ingresos).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></td>
+            </tr>
+            <tr>
+              <td><span style="color:#dc2626;"><i class="bi bi-arrow-down-circle-fill me-1"></i>Costos</span></td>
+              <td class="text-end fw-semibold">$<%= Number(er.costos).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></td>
+            </tr>
+            <tr>
+              <td><span style="color:#dc2626;"><i class="bi bi-arrow-down-circle-fill me-1"></i>Gastos</span></td>
+              <td class="text-end fw-semibold">$<%= Number(er.gastos).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></td>
+            </tr>
+            <tr class="total-row">
+              <td><i class="bi bi-calculator me-1"></i>Utilidad</td>
+              <td class="text-end fw-bold" style="color:<%= er.utilidad >= 0 ? '#16a34a' : '#dc2626' %>;">$<%= Number(er.utilidad).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card card-dashboard flex-fill">
+      <div class="card-body">
+        <div class="section-title"><i class="bi bi-bar-chart-fill"></i>Balance General</div>
+        <table class="table table-sm table-borderless table-summary">
+          <thead>
+            <tr><th>Concepto</th><th class="text-end">Importe</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span style="color:#2563eb;"><i class="bi bi-box me-1"></i>Activo</span></td>
+              <td class="text-end fw-semibold">$<%= Number(bg.activo).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></td>
+            </tr>
+            <tr>
+              <td><span style="color:#9333ea;"><i class="bi bi-credit-card me-1"></i>Pasivo</span></td>
+              <td class="text-end fw-semibold">$<%= Number(bg.pasivo).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></td>
+            </tr>
+            <tr>
+              <td><span style="color:#ca8a04;"><i class="bi bi-piggy-bank me-1"></i>Capital</span></td>
+              <td class="text-end fw-semibold">$<%= Number(bg.capital).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></td>
+            </tr>
+            <tr class="total-row">
+              <td><i class="bi bi-check-circle me-1"></i>Total Pasivo + Capital</td>
+              <td class="text-end fw-bold" style="color:#0f172a;">$<%= Number(bg.pasivo + bg.capital).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}) %></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var ejercicio = <%= ejercicio %>;
+  fetch('/api/dashboard/data?ejercicio=' + ejercicio)
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      var meses = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+      var labels = data.mensual.map(function (d) { return meses[d.mes - 1]; });
+      var ingresos = data.mensual.map(function (d) { return d.ingresos; });
+      var egresos = data.mensual.map(function (d) { return d.egresos; });
+
+      var ctx = document.getElementById('chartIngresosEgresos').getContext('2d');
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Ingresos',
+              data: ingresos,
+              borderColor: '#16a34a',
+              backgroundColor: 'rgba(22,163,74,0.08)',
+              fill: true,
+              tension: 0.35,
+              pointRadius: 4,
+              pointHoverRadius: 6,
+              pointBackgroundColor: '#16a34a',
+              borderWidth: 2.5
+            },
+            {
+              label: 'Egresos',
+              data: egresos,
+              borderColor: '#dc2626',
+              backgroundColor: 'rgba(220,38,38,0.08)',
+              fill: true,
+              tension: 0.35,
+              pointRadius: 4,
+              pointHoverRadius: 6,
+              pointBackgroundColor: '#dc2626',
+              borderWidth: 2.5
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'top',
+              labels: { usePointStyle: true, padding: 20, font: { size: 12 } }
+            },
+            tooltip: {
+              callbacks: {
+                label: function (ctx) {
+                  return ctx.dataset.label + ': $' + ctx.parsed.y.toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2});
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              grid: { display: false },
+              ticks: { font: { size: 11 } }
+            },
+            y: {
+              beginAtZero: true,
+              grid: { color: 'rgba(0,0,0,0.04)' },
+              ticks: {
+                font: { size: 11 },
+                callback: function (v) { return '$' + v.toLocaleString('es-MX'); }
+              }
+            }
+          },
+          interaction: { intersect: false, mode: 'index' }
+        }
+      });
+    })
+    .catch(function (err) {
+      console.error('Error al cargar datos del dashboard:', err);
+    });
+});
+</script>
+
+<%- include('partials/footer') %>

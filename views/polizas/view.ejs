@@ -1,0 +1,105 @@
+<%- include('../partials/header', { title, path }) %>
+
+<div class="container-fluid px-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="mb-0"><i class="bi bi-journal-text"></i> Póliza <%= poliza.tipo %>-<%= poliza.numero %></h4>
+    <div>
+      <a href="/polizas" class="btn btn-outline-secondary me-2">
+        <i class="bi bi-arrow-left"></i> Volver
+      </a>
+      <a href="/polizas/editar/<%= poliza.id %>" class="btn btn-primary me-2">
+        <i class="bi bi-pencil"></i> Editar
+      </a>
+      <a href="/polizas/eliminar/<%= poliza.id %>" class="btn btn-danger" onclick="return confirm('¿Eliminar la póliza <%= poliza.tipo %>-<%= poliza.numero %>?\n\nEsta acción no se puede deshacer.')">
+        <i class="bi bi-trash"></i> Eliminar
+      </a>
+    </div>
+  </div>
+
+  <div class="card shadow-sm mb-4">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-auto">
+          <span class="text-muted small d-block">Tipo</span>
+          <% const badgeClass = { I: 'primary', E: 'success', D: 'info', O: 'warning' }[poliza.tipo] || 'secondary'; %>
+          <span class="badge bg-<%= badgeClass %> fs-6 px-3 py-2"><%= poliza.tipo %></span>
+        </div>
+        <div class="col-auto">
+          <span class="text-muted small d-block">Número</span>
+          <span class="fw-bold fs-5 font-monospace"><%= poliza.numero %></span>
+        </div>
+        <div class="col-md-2">
+          <span class="text-muted small d-block">Fecha</span>
+          <span class="fw-bold"><%= poliza.fecha %></span>
+        </div>
+        <div class="col-md-5">
+          <span class="text-muted small d-block">Concepto</span>
+          <span class="fw-bold"><%= poliza.concepto %></span>
+        </div>
+        <% if (poliza.uuid) { %>
+          <div class="col-md-3">
+            <span class="text-muted small d-block">UUID</span>
+            <span class="small font-monospace"><%= poliza.uuid %></span>
+          </div>
+        <% } %>
+      </div>
+    </div>
+  </div>
+
+  <div class="card shadow-sm">
+    <div class="card-header bg-white">
+      <strong>Detalle</strong>
+    </div>
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-bordered align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Cuenta</th>
+              <th>Concepto</th>
+              <th class="text-end">Debe</th>
+              <th class="text-end">Haber</th>
+              <th>Auxiliar</th>
+              <th>Referencia</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (detalle && detalle.length) { %>
+              <% detalle.forEach(function(d) { %>
+                <tr>
+                  <td>
+                    <span class="font-monospace"><%= d.codigo_cuenta || d.cuenta_codigo || '' %></span>
+                    — <%= d.nombre_cuenta || d.cuenta_nombre || '' %>
+                  </td>
+                  <td><%= d.concepto || '' %></td>
+                  <td class="text-end font-monospace"><%= (d.debe || 0).toFixed(2) %></td>
+                  <td class="text-end font-monospace"><%= (d.haber || 0).toFixed(2) %></td>
+                  <td><%= d.nombre_auxiliar || '' %></td>
+                  <td><%= d.referencia || '' %></td>
+                </tr>
+              <% }) %>
+            <% } else { %>
+              <tr>
+                <td colspan="6" class="text-center text-muted py-4">Sin detalle</td>
+              </tr>
+            <% } %>
+          </tbody>
+          <tfoot class="table-light">
+            <tr>
+              <th colspan="2" class="text-end">Totales</th>
+              <th class="text-end font-monospace">
+                <%= (detalle || []).reduce(function(s, d) { return s + parseFloat(d.debe || 0); }, 0).toFixed(2) %>
+              </th>
+              <th class="text-end font-monospace">
+                <%= (detalle || []).reduce(function(s, d) { return s + parseFloat(d.haber || 0); }, 0).toFixed(2) %>
+              </th>
+              <th colspan="2"></th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

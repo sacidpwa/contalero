@@ -1,0 +1,222 @@
+<%- include('../partials/header', { title, path, mes, ejercicio, empresa }) %>
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <div>
+    <h4 class="mb-1 fw-bold" style="color:#0f172a;">Configuración</h4>
+    <p class="text-muted mb-0" style="font-size:.9rem;">Administración de la configuración del sistema</p>
+  </div>
+</div>
+
+<ul class="nav nav-tabs mb-4" id="configTabs" role="tablist" style="border-bottom-color:#e2e8f0;gap:.25rem;">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" id="empresa-tab" data-bs-toggle="tab" data-bs-target="#empresa" type="button" role="tab" style="border-radius:8px 8px 0 0;font-size:.9rem;font-weight:500;color:#475569;padding:.5rem 1.25rem;border-color:#e2e8f0;">
+      <i class="bi bi-building me-1"></i>Datos de la Empresa
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="costos-tab" data-bs-toggle="tab" data-bs-target="#costos" type="button" role="tab" style="border-radius:8px 8px 0 0;font-size:.9rem;font-weight:500;color:#475569;padding:.5rem 1.25rem;border-color:#e2e8f0;">
+      <i class="bi bi-layers me-1"></i>Centros de Costos
+    </button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="departamentos-tab" data-bs-toggle="tab" data-bs-target="#departamentos" type="button" role="tab" style="border-radius:8px 8px 0 0;font-size:.9rem;font-weight:500;color:#475569;padding:.5rem 1.25rem;border-color:#e2e8f0;">
+      <i class="bi bi-people me-1"></i>Departamentos
+    </button>
+  </li>
+</ul>
+
+<div class="tab-content">
+  <div class="tab-pane fade show active" id="empresa" role="tabpanel">
+    <div class="card card-dashboard">
+      <div class="card-body">
+        <form method="POST" action="/config/guardar">
+          <input type="hidden" name="seccion" value="empresa">
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label text-muted" style="font-size:.85rem;font-weight:500;">Nombre de la Empresa</label>
+              <input type="text" class="form-control form-control-sm" name="nombre" value="<%= typeof config !== 'undefined' && config.nombre ? config.nombre : '' %>" style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label text-muted" style="font-size:.85rem;font-weight:500;">RFC</label>
+              <input type="text" class="form-control form-control-sm" name="rfc" value="<%= typeof config !== 'undefined' && config.rfc ? config.rfc : '' %>" style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;text-transform:uppercase;">
+            </div>
+            <div class="col-md-12">
+              <label class="form-label text-muted" style="font-size:.85rem;font-weight:500;">Dirección</label>
+              <input type="text" class="form-control form-control-sm" name="direccion" value="<%= typeof config !== 'undefined' && config.direccion ? config.direccion : '' %>" style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label text-muted" style="font-size:.85rem;font-weight:500;">Ejercicio Actual</label>
+              <select class="form-select form-select-sm" name="ejercicio" style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;">
+                <% for (var a = 2020; a <= 2035; a++) { %>
+                  <option value="<%= a %>" <%= (typeof config !== 'undefined' && config.ejercicio ? config.ejercicio : ejercicio) == a ? 'selected' : '' %>><%= a %></option>
+                <% } %>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label text-muted" style="font-size:.85rem;font-weight:500;">Mes Actual</label>
+              <select class="form-select form-select-sm" name="mes" style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;">
+                <% var meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre']; %>
+                <% for (var i = 1; i <= 12; i++) { %>
+                  <option value="<%= i %>" <%= (typeof config !== 'undefined' && config.mes ? config.mes : mes) == i ? 'selected' : '' %>><%= meses[i-1] %></option>
+                <% } %>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label text-muted" style="font-size:.85rem;font-weight:500;">Tasa de IVA (%)</label>
+              <input type="number" step="0.01" class="form-control form-control-sm" name="tasa_iva" value="<%= typeof config !== 'undefined' && config.tasa_iva ? Number(config.tasa_iva).toFixed(2) : '16.00' %>" style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;">
+            </div>
+            <div class="col-12 mt-4">
+              <button type="submit" class="btn btn-sm btn-primary" style="border-radius:8px;font-size:.9rem;padding:.4rem 2rem;">
+                <i class="bi bi-check-lg me-1"></i>Guardar Cambios
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-pane fade" id="costos" role="tabpanel">
+    <div class="row g-3">
+      <div class="col-lg-8">
+        <div class="card card-dashboard">
+          <div class="card-body">
+            <div class="section-title"><i class="bi bi-list"></i>Centros de Costos</div>
+            <div class="table-responsive">
+              <table class="table table-sm table-summary mb-0">
+                <thead>
+                  <tr>
+                    <th>Código</th>
+                    <th>Nombre</th>
+                    <th class="text-center">Activo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% if (typeof centros_costos !== 'undefined' && centros_costos.length) { %>
+                    <% centros_costos.forEach(function(cc) { %>
+                      <tr>
+                        <td class="fw-semibold"><%= cc.codigo %></td>
+                        <td><%= cc.nombre %></td>
+                        <td class="text-center">
+                          <% if (cc.activo) { %>
+                            <span class="badge bg-success" style="font-size:.8rem;font-weight:500;">Sí</span>
+                          <% } else { %>
+                            <span class="badge bg-secondary" style="font-size:.8rem;font-weight:500;">No</span>
+                          <% } %>
+                        </td>
+                      </tr>
+                    <% }); %>
+                  <% } else { %>
+                    <tr>
+                      <td colspan="3" class="text-center text-muted py-3" style="font-size:.9rem;">No hay centros de costos registrados</td>
+                    </tr>
+                  <% } %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <div class="card card-dashboard">
+          <div class="card-body">
+            <div class="section-title"><i class="bi bi-plus-circle"></i>Agregar Centro de Costo</div>
+            <form method="POST" action="/config/guardar">
+              <input type="hidden" name="seccion" value="centro_costo">
+              <div class="mb-3">
+                <label class="form-label text-muted" style="font-size:.85rem;font-weight:500;">Código</label>
+                <input type="text" class="form-control form-control-sm" name="codigo" required style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;">
+              </div>
+              <div class="mb-3">
+                <label class="form-label text-muted" style="font-size:.85rem;font-weight:500;">Nombre</label>
+                <input type="text" class="form-control form-control-sm" name="nombre" required style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;">
+              </div>
+              <div class="mb-3">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="activo" value="1" checked id="ccActivo" style="border-color:#cbd5e1;">
+                  <label class="form-check-label" for="ccActivo" style="font-size:.9rem;">Activo</label>
+                </div>
+              </div>
+              <button type="submit" class="btn btn-sm btn-primary w-100" style="border-radius:8px;font-size:.85rem;">
+                <i class="bi bi-plus-lg me-1"></i>Agregar
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-pane fade" id="departamentos" role="tabpanel">
+    <div class="row g-3">
+      <div class="col-lg-8">
+        <div class="card card-dashboard">
+          <div class="card-body">
+            <div class="section-title"><i class="bi bi-list"></i>Departamentos</div>
+            <div class="table-responsive">
+              <table class="table table-sm table-summary mb-0">
+                <thead>
+                  <tr>
+                    <th>Código</th>
+                    <th>Nombre</th>
+                    <th class="text-center">Activo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <% if (typeof departamentos !== 'undefined' && departamentos.length) { %>
+                    <% departamentos.forEach(function(d) { %>
+                      <tr>
+                        <td class="fw-semibold"><%= d.codigo %></td>
+                        <td><%= d.nombre %></td>
+                        <td class="text-center">
+                          <% if (d.activo) { %>
+                            <span class="badge bg-success" style="font-size:.8rem;font-weight:500;">Sí</span>
+                          <% } else { %>
+                            <span class="badge bg-secondary" style="font-size:.8rem;font-weight:500;">No</span>
+                          <% } %>
+                        </td>
+                      </tr>
+                    <% }); %>
+                  <% } else { %>
+                    <tr>
+                      <td colspan="3" class="text-center text-muted py-3" style="font-size:.9rem;">No hay departamentos registrados</td>
+                    </tr>
+                  <% } %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <div class="card card-dashboard">
+          <div class="card-body">
+            <div class="section-title"><i class="bi bi-plus-circle"></i>Agregar Departamento</div>
+            <form method="POST" action="/config/guardar">
+              <input type="hidden" name="seccion" value="departamento">
+              <div class="mb-3">
+                <label class="form-label text-muted" style="font-size:.85rem;font-weight:500;">Código</label>
+                <input type="text" class="form-control form-control-sm" name="codigo" required style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;">
+              </div>
+              <div class="mb-3">
+                <label class="form-label text-muted" style="font-size:.85rem;font-weight:500;">Nombre</label>
+                <input type="text" class="form-control form-control-sm" name="nombre" required style="border-radius:8px;border-color:#e2e8f0;font-size:.9rem;">
+              </div>
+              <div class="mb-3">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" name="activo" value="1" checked id="deptActivo" style="border-color:#cbd5e1;">
+                  <label class="form-check-label" for="deptActivo" style="font-size:.9rem;">Activo</label>
+                </div>
+              </div>
+              <button type="submit" class="btn btn-sm btn-primary w-100" style="border-radius:8px;font-size:.85rem;">
+                <i class="bi bi-plus-lg me-1"></i>Agregar
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

@@ -1,0 +1,5 @@
+node_modules/
+database/contabilidad.db
+.env
+*.log
+.DS_Store
