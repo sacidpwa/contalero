@@ -270,12 +270,12 @@ function seedData() {
     ['7000', 'OTROS GASTOS', 1, 'D', 'N', 0],
     ['7100', 'GASTOS NO DEDUCIBLES', 2, 'D', 'S', 1],
     ['7101', 'GASTOS NO DEDUCIBLES', 3, 'D', 'S', 1],
-    ['8000', 'CUENTAS DE CIERRE', 1, 'N', 'N', 0],
+    ['8000', 'CUENTAS DE CIERRE', 1, 'A', 'N', 0],
     ['8001', 'CIERRE DE INGRESOS', 3, 'A', 'S', 1],
     ['8002', 'CIERRE DE COSTOS', 3, 'D', 'S', 1],
     ['8003', 'CIERRE DE GASTOS', 3, 'D', 'S', 1],
     ['8004', 'CIERRE DE OTROS GASTOS', 3, 'D', 'S', 1],
-    ['8005', 'CIERRE CONTABLE', 3, 'N', 'S', 1],
+    ['8005', 'CIERRE CONTABLE', 3, 'A', 'S', 1],
   ];
 
   const insertCuenta = db.prepare(`INSERT INTO cuentas (codigo, nombre, nivel, naturaleza, tipo_sat, acepta_movimientos) VALUES (?, ?, ?, ?, ?, ?)`);
