@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getDB } = require('../database/schema');
-const { getSaldos, getEstadoResultados, getBalanceGeneral } = require('../services/contabilidad');
+const { getSaldos, getBalanceGeneral } = require('../services/contabilidad');
 
 router.get('/balanza', (req, res) => {
   const mes = parseInt(req.query.mes || req.session.mes || 6);
@@ -12,39 +12,108 @@ router.get('/balanza', (req, res) => {
 
 router.get('/mayor', (req, res) => {
   const db = getDB();
-  const cuentaId = req.query.cuenta_id;
+  const codigo = req.query.codigo || '';
   const mes = parseInt(req.query.mes || req.session.mes || 6);
   const ejercicio = parseInt(req.query.ejercicio || req.session.ejercicio || 2026);
   const cuentas = db.prepare('SELECT * FROM cuentas WHERE activo = 1 ORDER BY codigo').all();
 
   let movimientos = [];
   let cuenta = null;
-  if (cuentaId) {
-    cuenta = db.prepare('SELECT * FROM cuentas WHERE id = ?').get(cuentaId);
-    movimientos = db.prepare(`SELECT pd.*, p.fecha, p.numero, p.tipo, p.concepto as poliza_concepto,
-      a.nombre as auxiliar_nombre
-      FROM polizas_detalle pd
-      JOIN polizas p ON p.id = pd.poliza_id
-      LEFT JOIN auxiliares a ON a.id = pd.auxiliar_id
-      WHERE pd.cuenta_id = ? AND p.ejercicio = ? AND p.mes <= ?
-      ORDER BY p.fecha, p.tipo, p.numero`).all(cuentaId, ejercicio, mes);
+  if (codigo) {
+    cuenta = db.prepare('SELECT * FROM cuentas WHERE codigo = ?').get(codigo);
+    if (cuenta) {
+      movimientos = db.prepare(`SELECT pd.*, p.fecha, p.numero, p.tipo, p.concepto as poliza_concepto,
+        a.nombre as auxiliar_nombre
+        FROM polizas_detalle pd
+        JOIN polizas p ON p.id = pd.poliza_id
+        LEFT JOIN auxiliares a ON a.id = pd.auxiliar_id
+        WHERE pd.cuenta_id = ? AND p.ejercicio = ? AND p.mes <= ?
+        ORDER BY p.fecha, p.tipo, p.numero`).all(cuenta.id, ejercicio, mes);
+    }
   }
 
-  res.render('reportes/mayor', { cuentas, cuenta, movimientos, mes, ejercicio, title: 'Mayor de Cuentas' });
+  res.render('reportes/mayor', { cuentas, cuenta, movimientos, codigo, mes, ejercicio, title: 'Mayor de Cuentas' });
 });
 
 router.get('/resultados', (req, res) => {
   const mes = parseInt(req.query.mes || req.session.mes || 6);
   const ejercicio = parseInt(req.query.ejercicio || req.session.ejercicio || 2026);
-  const er = getEstadoResultados(ejercicio, mes);
-  res.render('reportes/resultados', { er, mes, ejercicio, title: 'Estado de Resultados' });
+  const saldos = getSaldos(ejercicio, mes);
+  const diasMes = new Date(ejercicio, mes, 0).getDate();
+  const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+  let ingresos = [], costos = [], gastos = [], otrosIngresos = [], otrosGastos = [];
+  for (const s of saldos) {
+    const item = { codigo: s.codigo, nombre: s.nombre, saldo: s.naturaleza === 'A' ? s.saldo : -s.saldo };
+    if (s.codigo.startsWith('4')) ingresos.push(item);
+    else if (s.codigo.startsWith('5')) costos.push(item);
+    else if (s.codigo.startsWith('6')) gastos.push(item);
+    else if (s.codigo.startsWith('7')) otrosGastos.push(item);
+  }
+  ingresos = ingresos.filter(c => Math.abs(c.saldo) > 0.01);
+  costos = costos.filter(c => Math.abs(c.saldo) > 0.01);
+  gastos = gastos.filter(c => Math.abs(c.saldo) > 0.01);
+  otrosGastos = otrosGastos.filter(c => Math.abs(c.saldo) > 0.01);
+
+  const totalIngresos = ingresos.reduce((a, c) => a + c.saldo, 0);
+  const totalCostos = costos.reduce((a, c) => a + c.saldo, 0);
+  const totalGastos = gastos.reduce((a, c) => a + c.saldo, 0);
+  const totalOtrosGastos = otrosGastos.reduce((a, c) => a + c.saldo, 0);
+  const utilidadBruta = totalIngresos - totalCostos;
+  const utilidadOperacion = utilidadBruta - totalGastos;
+  const utilidadNeta = utilidadOperacion - totalOtrosGastos;
+
+  res.render('reportes/resultados', {
+    ingresos, costos, gastos, otrosIngresos, otrosGastos,
+    totalIngresos, totalCostos, totalGastos, totalOtrosIngresos: 0, totalOtrosGastos,
+    utilidadBruta, utilidadOperacion, utilidadNeta,
+    mes, ejercicio, diasMes, meses, title: 'Estado de Resultados'
+  });
 });
 
 router.get('/balance', (req, res) => {
   const mes = parseInt(req.query.mes || req.session.mes || 6);
   const ejercicio = parseInt(req.query.ejercicio || req.session.ejercicio || 2026);
-  const bg = getBalanceGeneral(ejercicio, mes);
-  res.render('reportes/balance', { bg, mes, ejercicio, title: 'Balance General' });
+  const saldos = getSaldos(ejercicio, mes);
+  const diasMes = new Date(ejercicio, mes, 0).getDate();
+  const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+  let activoCirculante = [], activoNoCirculante = [];
+  let pasivoCirculante = [], pasivoNoCirculante = [];
+  let capital = [];
+  let utilidadEjercicio = 0;
+
+  for (const s of saldos) {
+    if (Math.abs(s.saldo) < 0.01) continue;
+    const item = { codigo: s.codigo, nombre: s.nombre, saldo: Math.abs(s.saldo) };
+    if (s.codigo.startsWith('11')) activoCirculante.push(item);
+    else if (s.codigo.startsWith('12')) activoNoCirculante.push(item);
+    else if (s.codigo.startsWith('21')) pasivoCirculante.push(item);
+    else if (s.codigo.startsWith('22')) pasivoNoCirculante.push(item);
+    else if (s.codigo.startsWith('3')) {
+      if (s.codigo === '3203' || s.codigo === '3204') {
+        utilidadEjercicio = Math.abs(s.saldo);
+      } else {
+        capital.push(item);
+      }
+    }
+  }
+
+  const totalActivoCirculante = activoCirculante.reduce((a, c) => a + c.saldo, 0);
+  const totalActivoNoCirculante = activoNoCirculante.reduce((a, c) => a + c.saldo, 0);
+  const totalActivo = totalActivoCirculante + totalActivoNoCirculante;
+  const totalPasivoCirculante = pasivoCirculante.reduce((a, c) => a + c.saldo, 0);
+  const totalPasivoNoCirculante = pasivoNoCirculante.reduce((a, c) => a + c.saldo, 0);
+  const totalCapital = capital.reduce((a, c) => a + c.saldo, 0);
+  const utilidadNeta = utilidadEjercicio;
+  const totalPasivoCapital = totalPasivoCirculante + totalPasivoNoCirculante + totalCapital + utilidadNeta;
+
+  res.render('reportes/balance', {
+    activoCirculante, activoNoCirculante, pasivoCirculante, pasivoNoCirculante, capital,
+    totalActivoCirculante, totalActivoNoCirculante, totalActivo,
+    totalPasivoCirculante, totalPasivoNoCirculante, totalPasivoCapital,
+    utilidadNeta, mes, ejercicio, diasMes, meses, title: 'Balance General'
+  });
 });
 
 module.exports = router;

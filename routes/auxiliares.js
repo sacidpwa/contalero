@@ -10,7 +10,7 @@ router.get('/', (req, res) => {
   if (tipo) { sql += ' WHERE tipo = ?'; params.push(tipo); }
   sql += ' ORDER BY codigo';
   const auxiliares = db.prepare(sql).all(...params);
-  res.render('auxiliares/list', { auxiliares, tipos: ['A', 'C', 'P'], title: 'Auxiliares' });
+  res.render('auxiliares/list', { auxiliares, tipo, tipos: ['A', 'C', 'P'], title: 'Auxiliares' });
 });
 
 router.get('/nuevo', (req, res) => {

@@ -1,171 +1,179 @@
-const Database = require('better-sqlite3');
+const initSqlJs = require('sql.js');
+const fs = require('fs');
 const path = require('path');
 
-let db;
+const DB_PATH = path.join(__dirname, 'contabilidad.db');
+let db = null;
+
+class Statement {
+  constructor(sqlDb, sql, persist) {
+    this.sqlDb = sqlDb;
+    this.sql = sql;
+    this.persist = persist;
+  }
+
+  all(...params) {
+    const stmt = this.sqlDb.prepare(this.sql);
+    if (params.length > 0) stmt.bind(params);
+    const rows = [];
+    while (stmt.step()) rows.push(stmt.getAsObject());
+    stmt.free();
+    return rows;
+  }
+
+  get(...params) {
+    const stmt = this.sqlDb.prepare(this.sql);
+    if (params.length > 0) stmt.bind(params);
+    let row = null;
+    if (stmt.step()) row = stmt.getAsObject();
+    stmt.free();
+    return row;
+  }
+
+  run(...params) {
+    const stmt = this.sqlDb.prepare(this.sql);
+    if (params.length > 0) stmt.bind(params);
+    stmt.step();
+    stmt.free();
+    const idResult = this.sqlDb.exec('SELECT last_insert_rowid() as id');
+    const changesResult = this.sqlDb.exec('SELECT changes() as c');
+    this.persist();
+    return {
+      lastInsertRowid: idResult[0]?.values[0]?.[0] || 0,
+      changes: changesResult[0]?.values[0]?.[0] || 0
+    };
+  }
+}
 
 function getDB() {
-  if (!db) {
-    db = new Database(path.join(__dirname, 'contabilidad.db'));
-    db.pragma('journal_mode = WAL');
-    db.pragma('foreign_keys = ON');
-    initSchema();
-    seedData();
-  }
+  if (!db) throw new Error('Database not initialized. Call initDB() first.');
   return db;
 }
 
-function initSchema() {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS configuracion (
-      clave TEXT PRIMARY KEY,
-      valor TEXT
-    );
+async function initDB() {
+  if (db) return db;
 
-    CREATE TABLE IF NOT EXISTS cuentas (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      codigo TEXT NOT NULL,
-      nombre TEXT NOT NULL,
-      nivel INTEGER NOT NULL DEFAULT 1,
-      naturaleza TEXT CHECK(naturaleza IN ('D','A')),
-      tipo_sat TEXT DEFAULT 'N',
-      acepta_movimientos INTEGER DEFAULT 1,
-      activo INTEGER DEFAULT 1,
-      centro_costos INTEGER DEFAULT 0,
-      cuenta_padre TEXT,
-      UNIQUE(codigo)
-    );
+  const SQL = await initSqlJs();
+  const data = fs.existsSync(DB_PATH) ? fs.readFileSync(DB_PATH) : null;
+  const sqlDb = new SQL.Database(data);
+  sqlDb.run('PRAGMA foreign_keys = ON');
 
-    CREATE TABLE IF NOT EXISTS centros_costos (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      codigo TEXT UNIQUE NOT NULL,
-      nombre TEXT NOT NULL,
-      activo INTEGER DEFAULT 1
-    );
+  initSchema(sqlDb);
+  const isNew = seedData(sqlDb);
 
-    CREATE TABLE IF NOT EXISTS departamentos (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      codigo TEXT UNIQUE NOT NULL,
-      nombre TEXT NOT NULL,
-      activo INTEGER DEFAULT 1
-    );
+  const persist = () => {
+    const buf = sqlDb.export();
+    fs.writeFileSync(DB_PATH, Buffer.from(buf));
+  };
+  if (isNew) persist();
 
-    CREATE TABLE IF NOT EXISTS auxiliares (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      tipo TEXT CHECK(tipo IN ('C','P','A')) NOT NULL DEFAULT 'A',
-      codigo TEXT UNIQUE NOT NULL,
-      nombre TEXT NOT NULL,
-      rfc TEXT,
-      curp TEXT,
-      direccion TEXT,
-      telefono TEXT,
-      email TEXT,
-      activo INTEGER DEFAULT 1
-    );
+  db = new Proxy({}, {
+    get(_, prop) {
+      if (prop === 'prepare') return (sql) => new Statement(sqlDb, sql, persist);
+      if (prop === 'exec') return (sql) => sqlDb.exec(sql);
+      if (prop === 'transaction') {
+        return (fn) => (...args) => {
+          sqlDb.run('BEGIN');
+          try {
+            const result = fn(...args);
+            sqlDb.run('COMMIT');
+            persist();
+            return result;
+          } catch (e) {
+            sqlDb.run('ROLLBACK');
+            throw e;
+          }
+        };
+      }
+    }
+  });
 
-    CREATE TABLE IF NOT EXISTS polizas (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      tipo TEXT CHECK(tipo IN ('I','E','D','O')) NOT NULL,
-      numero INTEGER NOT NULL,
-      fecha DATE NOT NULL,
-      concepto TEXT NOT NULL,
-      mes INTEGER NOT NULL,
-      ejercicio INTEGER NOT NULL,
-      uuid TEXT,
-      UNIQUE(tipo, numero, ejercicio)
-    );
-
-    CREATE TABLE IF NOT EXISTS polizas_detalle (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      poliza_id INTEGER NOT NULL REFERENCES polizas(id) ON DELETE CASCADE,
-      cuenta_id INTEGER NOT NULL REFERENCES cuentas(id),
-      auxiliar_id INTEGER REFERENCES auxiliares(id),
-      centro_costo_id INTEGER REFERENCES centros_costos(id),
-      departamento_id INTEGER REFERENCES departamentos(id),
-      concepto TEXT,
-      debe REAL NOT NULL DEFAULT 0,
-      haber REAL NOT NULL DEFAULT 0,
-      referencia TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS presupuestos (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      cuenta_id INTEGER NOT NULL REFERENCES cuentas(id),
-      centro_costo_id INTEGER REFERENCES centros_costos(id),
-      mes INTEGER NOT NULL,
-      ejercicio INTEGER NOT NULL,
-      presupuesto REAL NOT NULL DEFAULT 0,
-      UNIQUE(cuenta_id, mes, ejercicio, centro_costo_id)
-    );
-
-    CREATE TABLE IF NOT EXISTS recurrentes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nombre TEXT NOT NULL,
-      tipo_poliza TEXT CHECK(tipo_poliza IN ('I','E','D')) NOT NULL,
-      periodicidad TEXT CHECK(periodicidad IN ('M','B','T','S','A')) NOT NULL,
-      dia INTEGER NOT NULL DEFAULT 1,
-      concepto TEXT NOT NULL,
-      activo INTEGER DEFAULT 1,
-      ultima_generacion TEXT,
-      created_at TEXT DEFAULT (datetime('now','localtime'))
-    );
-
-    CREATE TABLE IF NOT EXISTS recurrentes_detalle (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      recurrente_id INTEGER NOT NULL REFERENCES recurrentes(id) ON DELETE CASCADE,
-      cuenta_id INTEGER NOT NULL REFERENCES cuentas(id),
-      auxiliar_id INTEGER REFERENCES auxiliares(id),
-      centro_costo_id INTEGER REFERENCES centros_costos(id),
-      departamento_id INTEGER REFERENCES departamentos(id),
-      debe REAL NOT NULL DEFAULT 0,
-      haber REAL NOT NULL DEFAULT 0,
-      referencia TEXT
-    );
-
-    CREATE TABLE IF NOT EXISTS depreciaciones (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      cuenta_activo_id INTEGER NOT NULL REFERENCES cuentas(id),
-      cuenta_gasto_id INTEGER NOT NULL REFERENCES cuentas(id),
-      cuenta_depreciacion_id INTEGER NOT NULL REFERENCES cuentas(id),
-      nombre TEXT NOT NULL,
-      fecha_adquisicion DATE NOT NULL,
-      valor_original REAL NOT NULL,
-      valor_residual REAL DEFAULT 0,
-      vida_util INTEGER NOT NULL,
-      metodo TEXT CHECK(metodo IN ('L','SDA')) DEFAULT 'L',
-      fecha_ultima_depreciacion TEXT,
-      activo INTEGER DEFAULT 1
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_polizas_fecha ON polizas(fecha);
-    CREATE INDEX IF NOT EXISTS idx_polizas_mes ON polizas(ejercicio, mes);
-    CREATE INDEX IF NOT EXISTS idx_detalle_poliza ON polizas_detalle(poliza_id);
-    CREATE INDEX IF NOT EXISTS idx_detalle_cuenta ON polizas_detalle(cuenta_id);
-    CREATE INDEX IF NOT EXISTS idx_presupuestos ON presupuestos(ejercicio, mes);
-  `);
+  return db;
 }
 
-function seedData() {
-  const count = db.prepare('SELECT COUNT(*) as c FROM configuracion').get().c;
-  if (count > 0) return;
+function initSchema(sqlDb) {
+  sqlDb.run(`CREATE TABLE IF NOT EXISTS configuracion (
+    clave TEXT PRIMARY KEY, valor TEXT
+  )`);
+  sqlDb.run(`CREATE TABLE IF NOT EXISTS cuentas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, codigo TEXT NOT NULL, nombre TEXT NOT NULL,
+    nivel INTEGER NOT NULL DEFAULT 1, naturaleza TEXT CHECK(naturaleza IN ('D','A')),
+    tipo_sat TEXT DEFAULT 'N', acepta_movimientos INTEGER DEFAULT 1,
+    activo INTEGER DEFAULT 1, centro_costos INTEGER DEFAULT 0, cuenta_padre TEXT, UNIQUE(codigo)
+  )`);
+  sqlDb.run(`CREATE TABLE IF NOT EXISTS centros_costos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, codigo TEXT UNIQUE NOT NULL, nombre TEXT NOT NULL, activo INTEGER DEFAULT 1
+  )`);
+  sqlDb.run(`CREATE TABLE IF NOT EXISTS departamentos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, codigo TEXT UNIQUE NOT NULL, nombre TEXT NOT NULL, activo INTEGER DEFAULT 1
+  )`);
+  sqlDb.run(`CREATE TABLE IF NOT EXISTS auxiliares (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT CHECK(tipo IN ('C','P','A')) NOT NULL DEFAULT 'A',
+    codigo TEXT UNIQUE NOT NULL, nombre TEXT NOT NULL, rfc TEXT, curp TEXT, direccion TEXT,
+    telefono TEXT, email TEXT, activo INTEGER DEFAULT 1
+  )`);
+  sqlDb.run(`CREATE TABLE IF NOT EXISTS polizas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, tipo TEXT CHECK(tipo IN ('I','E','D','O')) NOT NULL,
+    numero INTEGER NOT NULL, fecha DATE NOT NULL, concepto TEXT NOT NULL,
+    mes INTEGER NOT NULL, ejercicio INTEGER NOT NULL, uuid TEXT, UNIQUE(tipo, numero, ejercicio)
+  )`);
+  sqlDb.run(`CREATE TABLE IF NOT EXISTS polizas_detalle (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, poliza_id INTEGER NOT NULL REFERENCES polizas(id) ON DELETE CASCADE,
+    cuenta_id INTEGER NOT NULL REFERENCES cuentas(id), auxiliar_id INTEGER REFERENCES auxiliares(id),
+    centro_costo_id INTEGER REFERENCES centros_costos(id), departamento_id INTEGER REFERENCES departamentos(id),
+    concepto TEXT, debe REAL NOT NULL DEFAULT 0, haber REAL NOT NULL DEFAULT 0, referencia TEXT
+  )`);
+  sqlDb.run(`CREATE TABLE IF NOT EXISTS presupuestos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, cuenta_id INTEGER NOT NULL REFERENCES cuentas(id),
+    centro_costo_id INTEGER REFERENCES centros_costos(id), mes INTEGER NOT NULL,
+    ejercicio INTEGER NOT NULL, presupuesto REAL NOT NULL DEFAULT 0, UNIQUE(cuenta_id, mes, ejercicio, centro_costo_id)
+  )`);
+  sqlDb.run(`CREATE TABLE IF NOT EXISTS recurrentes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, nombre TEXT NOT NULL,
+    tipo_poliza TEXT CHECK(tipo_poliza IN ('I','E','D')) NOT NULL,
+    periodicidad TEXT CHECK(periodicidad IN ('M','B','T','S','A')) NOT NULL,
+    dia INTEGER NOT NULL DEFAULT 1, concepto TEXT NOT NULL, activo INTEGER DEFAULT 1,
+    ultima_generacion TEXT, created_at TEXT DEFAULT (datetime('now','localtime'))
+  )`);
+  sqlDb.run(`CREATE TABLE IF NOT EXISTS recurrentes_detalle (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, recurrente_id INTEGER NOT NULL REFERENCES recurrentes(id) ON DELETE CASCADE,
+    cuenta_id INTEGER NOT NULL REFERENCES cuentas(id), auxiliar_id INTEGER REFERENCES auxiliares(id),
+    centro_costo_id INTEGER REFERENCES centros_costos(id), departamento_id INTEGER REFERENCES departamentos(id),
+    debe REAL NOT NULL DEFAULT 0, haber REAL NOT NULL DEFAULT 0, referencia TEXT
+  )`);
+  sqlDb.run(`CREATE TABLE IF NOT EXISTS depreciaciones (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, cuenta_activo_id INTEGER NOT NULL REFERENCES cuentas(id),
+    cuenta_gasto_id INTEGER NOT NULL REFERENCES cuentas(id),
+    cuenta_depreciacion_id INTEGER NOT NULL REFERENCES cuentas(id),
+    nombre TEXT NOT NULL, fecha_adquisicion DATE NOT NULL, valor_original REAL NOT NULL,
+    valor_residual REAL DEFAULT 0, vida_util INTEGER NOT NULL,
+    metodo TEXT CHECK(metodo IN ('L','SDA')) DEFAULT 'L', fecha_ultima_depreciacion TEXT, activo INTEGER DEFAULT 1
+  )`);
+  sqlDb.run('CREATE INDEX IF NOT EXISTS idx_polizas_fecha ON polizas(fecha)');
+  sqlDb.run('CREATE INDEX IF NOT EXISTS idx_polizas_mes ON polizas(ejercicio, mes)');
+  sqlDb.run('CREATE INDEX IF NOT EXISTS idx_detalle_poliza ON polizas_detalle(poliza_id)');
+  sqlDb.run('CREATE INDEX IF NOT EXISTS idx_detalle_cuenta ON polizas_detalle(cuenta_id)');
+  sqlDb.run('CREATE INDEX IF NOT EXISTS idx_presupuestos ON presupuestos(ejercicio, mes)');
+}
 
-  db.exec(`
-    INSERT INTO configuracion VALUES ('empresa_nombre', 'Mi Empresa');
-    INSERT INTO configuracion VALUES ('empresa_rfc', 'XXXX000101XXX');
-    INSERT INTO configuracion VALUES ('empresa_direccion', '');
-    INSERT INTO configuracion VALUES ('ejercicio_actual', '2026');
-    INSERT INTO configuracion VALUES ('mes_actual', '6');
-    INSERT INTO configuracion VALUES ('moneda', 'MXN');
-    INSERT INTO configuracion VALUES ('iva_tasa', '0.16');
-    INSERT INTO configuracion VALUES ('ultima_poliza_I', '0');
-    INSERT INTO configuracion VALUES ('ultima_poliza_E', '0');
-    INSERT INTO configuracion VALUES ('ultima_poliza_D', '0');
-    INSERT INTO configuracion VALUES ('ultima_poliza_O', '0');
+function seedData(sqlDb) {
+  const count = sqlDb.exec('SELECT COUNT(*) as c FROM configuracion');
+  if (count[0]?.values[0]?.[0] > 0) return false;
 
-    INSERT INTO centros_costos VALUES (1, '000', 'SIN CENTRO DE COSTOS', 1);
-    INSERT INTO departamentos VALUES (1, '000', 'SIN DEPARTAMENTO', 1);
-  `);
+  sqlDb.run(`INSERT INTO configuracion VALUES ('empresa_nombre', 'Mi Empresa')`);
+  sqlDb.run(`INSERT INTO configuracion VALUES ('empresa_rfc', 'XXXX000101XXX')`);
+  sqlDb.run(`INSERT INTO configuracion VALUES ('empresa_direccion', '')`);
+  sqlDb.run(`INSERT INTO configuracion VALUES ('ejercicio_actual', '2026')`);
+  sqlDb.run(`INSERT INTO configuracion VALUES ('mes_actual', '6')`);
+  sqlDb.run(`INSERT INTO configuracion VALUES ('moneda', 'MXN')`);
+  sqlDb.run(`INSERT INTO configuracion VALUES ('iva_tasa', '0.16')`);
+  sqlDb.run(`INSERT INTO configuracion VALUES ('ultima_poliza_I', '0')`);
+  sqlDb.run(`INSERT INTO configuracion VALUES ('ultima_poliza_E', '0')`);
+  sqlDb.run(`INSERT INTO configuracion VALUES ('ultima_poliza_D', '0')`);
+  sqlDb.run(`INSERT INTO configuracion VALUES ('ultima_poliza_O', '0')`);
+  sqlDb.run(`INSERT INTO centros_costos VALUES (1, '000', 'SIN CENTRO DE COSTOS', 1)`);
+  sqlDb.run(`INSERT INTO departamentos VALUES (1, '000', 'SIN DEPARTAMENTO', 1)`);
 
-  // Catálogo de cuentas SAT estándar
   const cuentas = [
     ['1000', 'ACTIVO', 1, 'D', 'N', 0],
     ['1100', 'ACTIVO CIRCULANTE', 2, 'D', 'N', 0],
@@ -195,7 +203,6 @@ function seedData() {
     ['1208', 'ACTIVOS INTANGIBLES', 3, 'D', 'S', 1],
     ['1209', 'AMORTIZACION ACUMULADA', 3, 'A', 'S', 1],
     ['1210', 'OTROS ACTIVOS NO CIRCULANTES', 3, 'D', 'S', 1],
-
     ['2000', 'PASIVO', 1, 'A', 'N', 0],
     ['2100', 'PASIVO CIRCULANTE', 2, 'A', 'N', 0],
     ['2101', 'PROVEEDORES', 3, 'A', 'S', 1],
@@ -213,7 +220,6 @@ function seedData() {
     ['2201', 'CREDITOS BANCARIOS LP', 3, 'A', 'S', 1],
     ['2202', 'PASIVOS LABORALES LP', 3, 'A', 'S', 1],
     ['2203', 'OTROS PASIVOS LP', 3, 'A', 'S', 1],
-
     ['3000', 'CAPITAL CONTABLE', 1, 'A', 'N', 0],
     ['3100', 'CAPITAL CONTRIBUIDO', 2, 'A', 'N', 0],
     ['3101', 'CAPITAL SOCIAL', 3, 'A', 'S', 1],
@@ -226,7 +232,6 @@ function seedData() {
     ['3204', 'PERDIDA DEL EJERCICIO', 3, 'D', 'S', 1],
     ['3205', 'RESERVA LEGAL', 3, 'A', 'S', 1],
     ['3206', 'OTRAS RESERVAS', 3, 'A', 'S', 1],
-
     ['4000', 'INGRESOS', 1, 'A', 'N', 0],
     ['4100', 'INGRESOS OPERATIVOS', 2, 'A', 'S', 1],
     ['4101', 'VENTAS', 3, 'A', 'S', 1],
@@ -235,14 +240,12 @@ function seedData() {
     ['4200', 'OTROS INGRESOS', 2, 'A', 'S', 1],
     ['4201', 'PRODUCTOS FINANCIEROS', 3, 'A', 'S', 1],
     ['4202', 'OTROS PRODUCTOS', 3, 'A', 'S', 1],
-
     ['5000', 'COSTOS', 1, 'D', 'N', 0],
     ['5100', 'COSTO DE VENTAS', 2, 'D', 'S', 1],
     ['5101', 'COSTO DE MERCANCIAS VENDIDAS', 3, 'D', 'S', 1],
     ['5102', 'COMPRAS', 3, 'D', 'S', 1],
     ['5103', 'DEVOLUCIONES SOBRE COMPRAS', 3, 'A', 'S', 1],
     ['5104', 'FLETES Y ACARREOS', 3, 'D', 'S', 1],
-
     ['6000', 'GASTOS', 1, 'D', 'N', 0],
     ['6100', 'GASTOS ADMINISTRATIVOS', 2, 'D', 'S', 1],
     ['6101', 'SUELDOS Y SALARIOS', 3, 'D', 'S', 1],
@@ -266,7 +269,6 @@ function seedData() {
     ['6201', 'INTERESES BANCARIOS', 3, 'D', 'S', 1],
     ['6202', 'GASTOS BANCARIOS', 3, 'D', 'S', 1],
     ['6203', 'OTROS GASTOS FINANCIEROS', 3, 'D', 'S', 1],
-
     ['7000', 'OTROS GASTOS', 1, 'D', 'N', 0],
     ['7100', 'GASTOS NO DEDUCIBLES', 2, 'D', 'S', 1],
     ['7101', 'GASTOS NO DEDUCIBLES', 3, 'D', 'S', 1],
@@ -278,11 +280,15 @@ function seedData() {
     ['8005', 'CIERRE CONTABLE', 3, 'A', 'S', 1],
   ];
 
-  const insertCuenta = db.prepare(`INSERT INTO cuentas (codigo, nombre, nivel, naturaleza, tipo_sat, acepta_movimientos) VALUES (?, ?, ?, ?, ?, ?)`);
+  const stmt = sqlDb.prepare('INSERT INTO cuentas (codigo, nombre, nivel, naturaleza, tipo_sat, acepta_movimientos) VALUES (?, ?, ?, ?, ?, ?)');
   for (const c of cuentas) {
-    insertCuenta.run(...c);
+    stmt.bind(c);
+    stmt.step();
+    stmt.reset();
   }
+  stmt.free();
   console.log('Catálogo de cuentas precargado');
+  return true;
 }
 
-module.exports = { getDB };
+module.exports = { getDB, initDB };

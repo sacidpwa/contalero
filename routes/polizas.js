@@ -18,7 +18,7 @@ router.get('/', (req, res) => {
 
   const polizas = db.prepare(sql).all(...params);
   const tipos = ['I','E','D','O'];
-  res.render('polizas/list', { polizas, tipos, mes: parseInt(mes), ejercicio: parseInt(ejercicio), title: 'Pólizas' });
+  res.render('polizas/list', { polizas, tipos, tipo, mes: parseInt(mes), ejercicio: parseInt(ejercicio), title: 'Pólizas' });
 });
 
 router.get('/nueva', (req, res) => {

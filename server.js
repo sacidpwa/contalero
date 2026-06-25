@@ -3,7 +3,7 @@ const session = require('express-session');
 const path = require('path');
 const morgan = require('morgan');
 
-const { getDB } = require('./database/schema');
+const { initDB, getDB } = require('./database/schema');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -44,9 +44,14 @@ app.use('/api', require('./routes/api'));
 
 app.get('/', (req, res) => res.redirect('/dashboard'));
 
-app.listen(PORT, () => {
-  console.log(`\n========================================`);
-  console.log(`  SISTEMA CONTABLE INTEGRAL`);
-  console.log(`  http://localhost:${PORT}`);
-  console.log(`========================================\n`);
+initDB().then(() => {
+  app.listen(PORT, () => {
+    console.log(`\n========================================`);
+    console.log(`  SISTEMA CONTABLE INTEGRAL`);
+    console.log(`  http://localhost:${PORT}`);
+    console.log(`========================================\n`);
+  });
+}).catch(err => {
+  console.error('Error inicializando la base de datos:', err);
+  process.exit(1);
 });
