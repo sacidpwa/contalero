@@ -2,6 +2,7 @@ const express = require('express');
 const session = require('express-session');
 const path = require('path');
 const morgan = require('morgan');
+const fileUpload = require('express-fileupload');
 
 const { initDB, getDB } = require('./database/schema');
 
@@ -11,6 +12,7 @@ const PORT = process.env.PORT || 3000;
 app.use(morgan('dev'));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json({ limit: '50mb' }));
+app.use(fileUpload({ limits: { fileSize: 500 * 1024 * 1024 } }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(session({
   secret: 'contabilidad2026',
@@ -41,6 +43,7 @@ app.use('/presupuestos', require('./routes/presupuestos'));
 app.use('/automatizacion', require('./routes/automatizacion'));
 app.use('/config', require('./routes/config'));
 app.use('/api', require('./routes/api'));
+app.use('/importar', require('./routes/importar'));
 
 app.get('/', (req, res) => res.redirect('/dashboard'));
 
