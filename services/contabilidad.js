@@ -14,9 +14,39 @@ function getSaldos(ejercicio, mes, soloDetalle) {
   sql += ' GROUP BY c.id ORDER BY c.codigo';
 
   const rows = db().prepare(sql).all(ejercicio, mes);
+  // Pre-cargar saldos importados de configuracion
+  const prefix = 'saldo_' + ejercicio + '_';
+  const confSaldos = db().prepare("SELECT clave, CAST(valor AS REAL) as v FROM configuracion WHERE clave LIKE ?").all(prefix + '%');
+  const saldoMap = {};
+  for (const c of confSaldos) {
+    const parts = c.clave.split('_');
+    if (parts.length >= 4) {
+      const m = parts[2];
+      const code = parts.slice(3).join('_');
+      if (!saldoMap[code]) saldoMap[code] = {};
+      saldoMap[code][m] = c.v;
+    }
+  }
+
   return rows.map(r => {
-    const saldo = r.naturaleza === 'D' ? r.debe - r.haber : r.haber - r.debe;
-    return { ...r, saldo };
+    if (r.debe !== 0 || r.haber !== 0) {
+      const saldo = r.naturaleza === 'D' ? r.debe - r.haber : r.haber - r.debe;
+      return { ...r, saldo };
+    }
+    // Fall back to configuracion saldos (imported from COI SALDOS CARGO/ABONO)
+    let val = 0;
+    const sm = String(mes).padStart(2, '0');
+    if (saldoMap[r.codigo]) {
+      // Use exact month, or last available month <= mes
+      for (let m = mes; m >= 1; m--) {
+        const sm2 = String(m).padStart(2, '0');
+        if (saldoMap[r.codigo][sm2] !== undefined) {
+          val = saldoMap[r.codigo][sm2];
+          break;
+        }
+      }
+    }
+    return { ...r, debe: 0, haber: 0, saldo: val };
   });
 }
 

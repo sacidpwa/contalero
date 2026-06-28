@@ -148,8 +148,14 @@ function importarFDB(fdbPath, opts) {
       }
       res.cuentas += ctaData.length;
 
-      // Note: COI also has AUXILIAR{YY} tables with ALL poliza detail (DEBE_HABER, MONTOMOV, NUM_CTA)
-      // Skipped here because they contain 40k+ rows which would cause timeout; OPETER/OPEIET suffice
+      // Cache cuenta naturaleza for saldo calculation (0=Deudora/D, 1=Acreedora/A)
+      const natMap = {};
+      for (const c of ctaData) {
+        const code = (c.NUM_CTA || '').trim().replace(/^0+/, '');
+        const raw = (c.NATURALEZA || '').trim();
+        const nat = raw === '1' ? 'A' : (raw === '0' ? 'D' : raw);
+        if (code) natMap[code] = nat;
+      }
 
       const salTable = tables.find(t => t === 'SALDOS' + ys);
       if (salTable) {
@@ -157,13 +163,16 @@ function importarFDB(fdbPath, opts) {
         const salData = getFDBData(fdbPath, salTable, salCols);
         log.push('SALDOS' + year + ': ' + salData.length);
         for (const row of salData) {
+          const numCta = (row.NUM_CTA || '').trim().replace(/^0+/, '');
+          const nat = natMap[numCta] || 'D';
+          let running = parseFloat(row.INICIAL) || 0;
           for (let m = 1; m <= 12; m++) {
             const sm = String(m).padStart(2, '0');
-            const sk = 'SALDO' + sm;
-            const v = safe(() => row[sk], undefined);
-            if (v !== undefined && v !== '') {
-              safe(() => ucfg.run('saldo_' + year + '_' + sm + '_' + (row.NUM_CTA || '').trim().replace(/^0+/, ''), v), null);
-            }
+            const cargo = parseFloat(row['CARGO' + sm] || '0') || 0;
+            const abono = parseFloat(row['ABONO' + sm] || '0') || 0;
+            if (nat === 'A') running += (abono - cargo);
+            else running += (cargo - abono);
+            safe(() => ucfg.run('saldo_' + year + '_' + sm + '_' + numCta, String(running)), null);
           }
         }
         res.saldos += salData.length;
@@ -227,7 +236,17 @@ function importarFDB(fdbPath, opts) {
           if (!ctaRow) continue;
           const monto = Math.abs(safe(() => parseFloat(row.MONCONIVA || row.MONDEDISR || '0') || 0, 0));
           if (monto === 0) continue;
-          safe(() => ipd.run(polRow.id, ctaRow.id, tipo === 'E' || tipoOrig === 'Tr' ? 0 : monto, tipo === 'E' || tipoOrig === 'Tr' ? monto : 0, '', (row.RFCPROVE || '').trim()), null);
+          // Determine debe/haber según tipo de póliza y cuenta
+          const codeDigit = (numCta || '')[0];
+          let debe = monto, haber = 0;
+          if (tipo === 'E') {
+            // Ingreso/Egreso: 4xxx=ingreso(haber), 5/6xxx=gasto(debe)
+            if (codeDigit === '4') { debe = 0; haber = monto; }
+          } else if (tipoOrig === 'Tr') {
+            // Transferencia: 2xxx=proveedor(haber), 1xxx=cliente(debe)
+            if (codeDigit === '2') { debe = 0; haber = monto; }
+          }
+          safe(() => ipd.run(polRow.id, ctaRow.id, debe, haber, '', (row.RFCPROVE || '').trim()), null);
           count++;
         }
         if (count > 0) log.push(opTbl + ' (año ' + year + '): ' + count + ' partidas');

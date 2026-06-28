@@ -20,14 +20,37 @@ router.get('/dashboard/data', (req, res) => {
   const db = getDB();
   const ejercicio = parseInt(req.query.ejercicio || new Date().getFullYear());
 
-  const mensual = db.prepare(`SELECT p.mes,
-    COALESCE(SUM(CASE WHEN c.codigo LIKE '4%' THEN pd.haber ELSE 0 END), 0) as ingresos,
-    COALESCE(SUM(CASE WHEN c.codigo LIKE '5%' OR c.codigo LIKE '6%' THEN pd.debe ELSE 0 END), 0) as egresos
-    FROM polizas p
-    JOIN polizas_detalle pd ON pd.poliza_id = p.id
-    JOIN cuentas c ON c.id = pd.cuenta_id
-    WHERE p.ejercicio = ?
-    GROUP BY p.mes ORDER BY p.mes`).all(ejercicio);
+  // Cargar saldos acumulados por mes + cuenta
+  const saldos = db.prepare(`SELECT clave, CAST(valor AS REAL) as valor
+    FROM configuracion WHERE clave LIKE ?`).all('saldo_' + ejercicio + '_%');
+
+  // Agrupar por cuenta: { codigo: { '01': cum, '02': cum, ... } }
+  const cuentas = {};
+  for (const s of saldos) {
+    const parts = s.clave.split('_');
+    if (parts.length < 4) continue;
+    const mes = parts[2];
+    const codigo = parts.slice(3).join('_');
+    if (!cuentas[codigo]) cuentas[codigo] = {};
+    cuentas[codigo][mes] = s.valor;
+  }
+
+  // Calcular flujo mensual = cum(m) - cum(m-1)
+  const mensual = [];
+  let prevIngresos = 0, prevEgresos = 0;
+  for (let m = 1; m <= 12; m++) {
+    const ms = String(m).padStart(2, '0');
+    let ingresos = 0, egresos = 0;
+    for (const [codigo, meses] of Object.entries(cuentas)) {
+      const cum = meses[ms] || 0;
+      const prev = meses[String(m - 1).padStart(2, '0')] || 0;
+      const flujo = cum - prev;
+      const d = codigo.replace(/^0+/, '')[0];
+      if (d === '4') ingresos += flujo;
+      else if (d === '5' || d === '6') egresos += flujo;
+    }
+    mensual.push({ mes: m, ingresos: Math.round(ingresos * 100) / 100, egresos: Math.round(egresos * 100) / 100 });
+  }
 
   res.json({ mensual });
 });
