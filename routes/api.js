@@ -20,6 +20,11 @@ router.get('/dashboard/data', (req, res) => {
   const db = getDB();
   const ejercicio = parseInt(req.query.ejercicio || new Date().getFullYear());
 
+  // Pre-cargar naturaleza de cuentas para clasificar correctamente
+  const natMap = {};
+  const todas = db.prepare('SELECT codigo, naturaleza FROM cuentas').all();
+  for (const c of todas) natMap[c.codigo] = c.naturaleza;
+
   // Cargar saldos acumulados por mes + cuenta
   const saldos = db.prepare(`SELECT clave, CAST(valor AS REAL) as valor
     FROM configuracion WHERE clave LIKE ?`).all('saldo_' + ejercicio + '_%');
@@ -37,7 +42,6 @@ router.get('/dashboard/data', (req, res) => {
 
   // Calcular flujo mensual = cum(m) - cum(m-1)
   const mensual = [];
-  let prevIngresos = 0, prevEgresos = 0;
   for (let m = 1; m <= 12; m++) {
     const ms = String(m).padStart(2, '0');
     let ingresos = 0, egresos = 0;
@@ -46,8 +50,12 @@ router.get('/dashboard/data', (req, res) => {
       const prev = meses[String(m - 1).padStart(2, '0')] || 0;
       const flujo = cum - prev;
       const d = codigo.replace(/^0+/, '')[0];
+      const nat = natMap[codigo] || 'D';
       if (d === '4') ingresos += flujo;
-      else if (d === '5' || d === '6') egresos += flujo;
+      else if (d === '7') {
+        if (nat === 'A') ingresos += flujo;
+        else egresos += flujo;
+      } else if (d === '5' || d === '6') egresos += flujo;
     }
     mensual.push({ mes: m, ingresos: Math.round(ingresos * 100) / 100, egresos: Math.round(egresos * 100) / 100 });
   }

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { getDB } = require('../database/schema');
-const { getSaldos, getBalanceGeneral } = require('../services/contabilidad');
+const { getSaldos, getBalanceGeneral, getEstadoResultados } = require('../services/contabilidad');
 
 router.get('/balanza', (req, res) => {
   const mes = parseInt(req.query.mes || req.session.mes || 6);
@@ -48,20 +48,25 @@ router.get('/resultados', (req, res) => {
     if (s.codigo.startsWith('4')) ingresos.push(item);
     else if (s.codigo.startsWith('5')) costos.push(item);
     else if (s.codigo.startsWith('6')) gastos.push(item);
-    else if (s.codigo.startsWith('7')) otrosGastos.push(item);
+    else if (s.codigo.startsWith('7')) {
+      if (s.naturaleza === 'A') otrosIngresos.push(item);
+      else otrosGastos.push(item);
+    }
   }
   ingresos = ingresos.filter(c => Math.abs(c.saldo) > 0.01);
   costos = costos.filter(c => Math.abs(c.saldo) > 0.01);
   gastos = gastos.filter(c => Math.abs(c.saldo) > 0.01);
+  otrosIngresos = otrosIngresos.filter(c => Math.abs(c.saldo) > 0.01);
   otrosGastos = otrosGastos.filter(c => Math.abs(c.saldo) > 0.01);
 
   const totalIngresos = ingresos.reduce((a, c) => a + c.saldo, 0);
   const totalCostos = costos.reduce((a, c) => a + c.saldo, 0);
   const totalGastos = gastos.reduce((a, c) => a + c.saldo, 0);
+  const totalOtrosIngresos = otrosIngresos.reduce((a, c) => a + c.saldo, 0);
   const totalOtrosGastos = otrosGastos.reduce((a, c) => a + c.saldo, 0);
   const utilidadBruta = totalIngresos - totalCostos;
   const utilidadOperacion = utilidadBruta - totalGastos;
-  const utilidadNeta = utilidadOperacion - totalOtrosGastos;
+  const utilidadNeta = utilidadOperacion + totalOtrosIngresos - totalOtrosGastos;
 
   res.render('reportes/resultados', {
     ingresos, costos, gastos, otrosIngresos, otrosGastos,
@@ -74,22 +79,29 @@ router.get('/resultados', (req, res) => {
 router.get('/balance', (req, res) => {
   const mes = parseInt(req.query.mes || req.session.mes || 6);
   const ejercicio = parseInt(req.query.ejercicio || req.session.ejercicio || 2026);
-  const saldos = getSaldos(ejercicio, mes);
+  const saldos = getSaldos(ejercicio, mes, true);
+  const bg = getBalanceGeneral(ejercicio, mes);
+  const er = getEstadoResultados(ejercicio, mes);
   const diasMes = new Date(ejercicio, mes, 0).getDate();
   const meses = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
   let activoCirculante = [], activoNoCirculante = [];
   let pasivoCirculante = [], pasivoNoCirculante = [];
   let capital = [];
-  let utilidadEjercicio = 0;
 
   function codePrefix(codigo, len) {
     return codigo.replace(/^0+/, '').substring(0, len);
   }
 
   for (const s of saldos) {
-    if (Math.abs(s.saldo) < 0.01) continue;
-    const item = { codigo: s.codigo, nombre: s.nombre, saldo: Math.abs(s.saldo) };
+    // Firmas correctas según grupo (misma lógica que getBalanceGeneral)
+    const d = s.codigo.replace(/^0+/, '')[0];
+    let signedSaldo;
+    if (d === '1') signedSaldo = s.naturaleza === 'D' ? s.saldo : -s.saldo;
+    else signedSaldo = s.naturaleza === 'A' ? s.saldo : -s.saldo;
+
+    if (Math.abs(signedSaldo) < 0.01) continue;
+    const item = { codigo: s.codigo, nombre: s.nombre, saldo: signedSaldo };
     const p3 = codePrefix(s.codigo, 3);
     const p2 = codePrefix(s.codigo, 2);
 
@@ -103,23 +115,20 @@ router.get('/balance', (req, res) => {
     } else if (/^2(3[0-9]|4[0-9]|5[0-9]|6[0-9]|7[0-9]|8[0-9]|9[0-9])/.test(p3) || p2 === '22') {
       pasivoNoCirculante.push(item);
     } else if (/^3/.test(p3) || p2 === '3') {
-      const last4 = s.codigo.replace(/^0+/, '').slice(-4);
-      if (last4 === '3203' || last4 === '3204' || s.codigo.includes('RESULTADO') || s.codigo.includes('340')) {
-        utilidadEjercicio = Math.abs(s.saldo);
-      } else {
-        capital.push(item);
-      }
+      // Todas las cuentas 3xxx se muestran como Capital
+      capital.push(item);
     }
   }
 
+  const totalActivo = bg.activo;
+  const totalPasivo = bg.pasivo;
+  const utilidadNeta = er.utilidad;
+  const totalCapital = bg.capital - utilidadNeta;
   const totalActivoCirculante = activoCirculante.reduce((a, c) => a + c.saldo, 0);
   const totalActivoNoCirculante = activoNoCirculante.reduce((a, c) => a + c.saldo, 0);
-  const totalActivo = totalActivoCirculante + totalActivoNoCirculante;
   const totalPasivoCirculante = pasivoCirculante.reduce((a, c) => a + c.saldo, 0);
   const totalPasivoNoCirculante = pasivoNoCirculante.reduce((a, c) => a + c.saldo, 0);
-  const totalCapital = capital.reduce((a, c) => a + c.saldo, 0);
-  const utilidadNeta = utilidadEjercicio;
-  const totalPasivoCapital = totalPasivoCirculante + totalPasivoNoCirculante + totalCapital + utilidadNeta;
+  const totalPasivoCapital = totalPasivo + totalCapital + utilidadNeta;
 
   res.render('reportes/balance', {
     activoCirculante, activoNoCirculante, pasivoCirculante, pasivoNoCirculante, capital,

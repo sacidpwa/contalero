@@ -146,6 +146,12 @@ function importarFDB(fdbPath, opts) {
         padres[codigo] = padre;
         safe(() => ic.run(codigo, nombre, nivel, naturaleza, tipoSat, acepta, padre), null);
       }
+      // Marcar cuentas padre como no detalle para evitar doble conteo en reportes
+      const pCodes = Object.values(padres).filter(Boolean);
+      const uniqueP = [...new Set(pCodes)];
+      if (uniqueP.length > 0) {
+        safe(() => db().prepare("UPDATE cuentas SET acepta_movimientos = 0 WHERE codigo IN (" + uniqueP.map(() => '?').join(',') + ")").run(...uniqueP), null);
+      }
       res.cuentas += ctaData.length;
 
       // Cache cuenta naturaleza for saldo calculation (0=Deudora/D, 1=Acreedora/A)

@@ -3,6 +3,42 @@ const { getDB } = require('../database/schema');
 function db() { return getDB(); }
 
 function getSaldos(ejercicio, mes, soloDetalle) {
+  const prefix = 'saldo_' + ejercicio + '_';
+  const useConfig = db().prepare("SELECT COUNT(*) as c FROM configuracion WHERE clave LIKE ?").get(prefix + '%').c > 0;
+
+  if (useConfig) {
+    // Modo COI importado: usar saldos de configuracion (fuente única y consistente)
+    const sqlDetalle = soloDetalle ? ' WHERE c.acepta_movimientos = 1' : '';
+    const rows = db().prepare(`SELECT c.id, c.codigo, c.nombre, c.nivel, c.naturaleza, c.acepta_movimientos,
+      c.centro_costos, c.tipo_sat FROM cuentas c${sqlDetalle} ORDER BY c.codigo`).all();
+    const confSaldos = db().prepare("SELECT clave, CAST(valor AS REAL) as v FROM configuracion WHERE clave LIKE ?").all(prefix + '%');
+    const saldoMap = {};
+    for (const c of confSaldos) {
+      const parts = c.clave.split('_');
+      if (parts.length >= 4) {
+        const m = parts[2];
+        const code = parts.slice(3).join('_');
+        if (!saldoMap[code]) saldoMap[code] = {};
+        saldoMap[code][m] = c.v;
+      }
+    }
+    const sm = String(mes).padStart(2, '0');
+    return rows.map(r => {
+      let val = 0;
+      if (saldoMap[r.codigo]) {
+        for (let m = mes; m >= 1; m--) {
+          const sm2 = String(m).padStart(2, '0');
+          if (saldoMap[r.codigo][sm2] !== undefined) {
+            val = saldoMap[r.codigo][sm2];
+            break;
+          }
+        }
+      }
+      return { ...r, debe: 0, haber: 0, saldo: val };
+    });
+  }
+
+  // Modo manual (sin importar COI): calcular desde polizas_detalle
   let sql = `SELECT c.id, c.codigo, c.nombre, c.nivel, c.naturaleza, c.acepta_movimientos,
     c.centro_costos, c.tipo_sat,
     COALESCE(SUM(CASE WHEN pd.id IS NOT NULL THEN pd.debe ELSE 0 END), 0) as debe,
@@ -14,39 +50,9 @@ function getSaldos(ejercicio, mes, soloDetalle) {
   sql += ' GROUP BY c.id ORDER BY c.codigo';
 
   const rows = db().prepare(sql).all(ejercicio, mes);
-  // Pre-cargar saldos importados de configuracion
-  const prefix = 'saldo_' + ejercicio + '_';
-  const confSaldos = db().prepare("SELECT clave, CAST(valor AS REAL) as v FROM configuracion WHERE clave LIKE ?").all(prefix + '%');
-  const saldoMap = {};
-  for (const c of confSaldos) {
-    const parts = c.clave.split('_');
-    if (parts.length >= 4) {
-      const m = parts[2];
-      const code = parts.slice(3).join('_');
-      if (!saldoMap[code]) saldoMap[code] = {};
-      saldoMap[code][m] = c.v;
-    }
-  }
-
   return rows.map(r => {
-    if (r.debe !== 0 || r.haber !== 0) {
-      const saldo = r.naturaleza === 'D' ? r.debe - r.haber : r.haber - r.debe;
-      return { ...r, saldo };
-    }
-    // Fall back to configuracion saldos (imported from COI SALDOS CARGO/ABONO)
-    let val = 0;
-    const sm = String(mes).padStart(2, '0');
-    if (saldoMap[r.codigo]) {
-      // Use exact month, or last available month <= mes
-      for (let m = mes; m >= 1; m--) {
-        const sm2 = String(m).padStart(2, '0');
-        if (saldoMap[r.codigo][sm2] !== undefined) {
-          val = saldoMap[r.codigo][sm2];
-          break;
-        }
-      }
-    }
-    return { ...r, debe: 0, haber: 0, saldo: val };
+    const saldo = r.naturaleza === 'D' ? r.debe - r.haber : r.haber - r.debe;
+    return { ...r, saldo };
   });
 }
 
@@ -89,19 +95,24 @@ function getSaldosAcumulados(ejercicio, mes) {
 }
 
 function getEstadoResultados(ejercicio, mes) {
-  const saldos = getSaldos(ejercicio, mes);
-  let ingresos = 0, costos = 0, gastos = 0;
+  const saldos = getSaldos(ejercicio, mes, true);
+  let ingresos = 0, costos = 0, gastos = 0, otrosIngresos = 0, otrosGastos = 0;
   for (const s of saldos) {
-    if (s.codigo.startsWith('4')) ingresos += s.naturaleza === 'A' ? s.saldo : -s.saldo;
-    if (s.codigo.startsWith('5')) costos += s.naturaleza === 'D' ? s.saldo : -s.saldo;
-    if (s.codigo.startsWith('6')) gastos += s.naturaleza === 'D' ? s.saldo : -s.saldo;
+    const d = s.codigo.replace(/^0+/, '')[0];
+    if (d === '4') ingresos += s.naturaleza === 'A' ? s.saldo : -s.saldo;
+    else if (d === '5') costos += s.naturaleza === 'D' ? s.saldo : -s.saldo;
+    else if (d === '6') gastos += s.naturaleza === 'D' ? s.saldo : -s.saldo;
+    else if (d === '7') {
+      if (s.naturaleza === 'A') otrosIngresos += s.saldo;
+      else otrosGastos += s.saldo;
+    }
   }
-  const utilidad = ingresos - costos - gastos;
-  return { ingresos, costos, gastos, utilidad, saldos };
+  const utilidad = ingresos + otrosIngresos - costos - gastos - otrosGastos;
+  return { ingresos, costos, gastos, otrosIngresos, otrosGastos, utilidad, saldos };
 }
 
 function getBalanceGeneral(ejercicio, mes) {
-  const saldos = getSaldos(ejercicio, mes);
+  const saldos = getSaldos(ejercicio, mes, true);
   let activo = 0, pasivo = 0, capital = 0;
   for (const s of saldos) {
     if (s.codigo.startsWith('1')) activo += s.naturaleza === 'D' ? s.saldo : -s.saldo;
