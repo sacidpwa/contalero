@@ -113,7 +113,7 @@ function importarFDB(fdbPath, opts) {
     const ip = db.prepare('INSERT OR IGNORE INTO polizas (tipo, numero, fecha, concepto, mes, ejercicio) VALUES (?, ?, ?, ?, ?, ?)');
     const ipd = db.prepare('INSERT INTO polizas_detalle (poliza_id, cuenta_id, debe, haber, concepto, referencia) VALUES (?, ?, ?, ?, ?, ?)');
     const gpi = db.prepare('SELECT id FROM polizas WHERE tipo = ? AND numero = ? AND ejercicio = ?');
-    const gci = db.prepare('SELECT id, nombre FROM cuentas WHERE codigo = ?');
+    const gci = db.prepare('SELECT id, nombre, naturaleza FROM cuentas WHERE codigo = ?');
     const ucfg = db.prepare('INSERT OR REPLACE INTO configuracion (clave, valor) VALUES (?, ?)');
     const ipp = db.prepare('INSERT OR IGNORE INTO presupuestos (cuenta_id, mes, ejercicio, presupuesto) VALUES (?, ?, ?, ?)');
 
@@ -242,15 +242,26 @@ function importarFDB(fdbPath, opts) {
           if (!ctaRow) continue;
           const monto = Math.abs(safe(() => parseFloat(row.MONCONIVA || row.MONDEDISR || '0') || 0, 0));
           if (monto === 0) continue;
-          // Determine debe/haber según tipo de póliza y cuenta
+          // Determine debe/haber según tipo de póliza y naturaleza de cuenta
           const codeDigit = (numCta || '')[0];
-          let debe = monto, haber = 0;
-          if (tipo === 'E') {
-            // Ingreso/Egreso: 4xxx=ingreso(haber), 5/6xxx=gasto(debe)
-            if (codeDigit === '4') { debe = 0; haber = monto; }
-          } else if (tipoOrig === 'Tr') {
-            // Transferencia: 2xxx=proveedor(haber), 1xxx=cliente(debe)
-            if (codeDigit === '2') { debe = 0; haber = monto; }
+          const acctNat = ctaRow ? ctaRow.naturaleza : null;
+          let debe = 0, haber = 0;
+          if (tipo === 'I' && codeDigit === '4') {
+            // Ingreso: 4xxx=ingreso(haber)
+            haber = monto;
+          } else if (tipo === 'E' && codeDigit === '2') {
+            // Egreso: 2xxx=proveedor/pasivo(haber)
+            haber = monto;
+          } else if (tipoOrig === 'Tr' && codeDigit === '2') {
+            // Transferencia: 2xxx=proveedor(haber)
+            haber = monto;
+          } else if (tipo === 'D' && acctNat) {
+            // Diario: usar naturaleza de la cuenta
+            if (acctNat === 'A') haber = monto;
+            else debe = monto;
+          } else {
+            // Default: debe
+            debe = monto;
           }
           safe(() => ipd.run(polRow.id, ctaRow.id, debe, haber, '', (row.RFCPROVE || '').trim()), null);
           count++;
