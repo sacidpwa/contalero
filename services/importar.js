@@ -91,27 +91,29 @@ function importarFDB(fdbPath, opts) {
 
     const runSql = (sql) => { try { db.exec(sql); } catch(e) { /* ignore */ } };
 
-    if (opts.limpiar) {
-      runSql('DELETE FROM polizas_detalle');
-      runSql('DELETE FROM polizas');
-      runSql('DELETE FROM presupuestos');
-      runSql('DELETE FROM auxiliares');
-      runSql('DELETE FROM departamentos');
-      runSql('DELETE FROM centros_costos');
-      runSql('DELETE FROM cuentas');
-      runSql('DELETE FROM recurrentes');
-      runSql('DELETE FROM recurrentes_detalle');
-      runSql('DELETE FROM depreciaciones');
-    }
+    // Always clean existing data on import (fresh import)
+    runSql('PRAGMA foreign_keys = OFF');
+    runSql('DELETE FROM polizas_detalle');
+    runSql('DELETE FROM polizas');
+    runSql('DELETE FROM presupuestos');
+    runSql('DELETE FROM auxiliares');
+    runSql('DELETE FROM departamentos');
+    runSql('DELETE FROM centros_costos');
+    runSql('DELETE FROM cuentas');
+    runSql('DELETE FROM recurrentes');
+    runSql('DELETE FROM recurrentes_detalle');
+    runSql('DELETE FROM depreciaciones');
+    runSql('DELETE FROM configuracion');
+    runSql('PRAGMA foreign_keys = ON');
 
-    const ic = db.prepare('INSERT OR IGNORE INTO cuentas (codigo, nombre, nivel, naturaleza, tipo_sat, acepta_movimientos, activo) VALUES (?, ?, ?, ?, ?, ?, 1)');
+    const ic = db.prepare('INSERT OR IGNORE INTO cuentas (codigo, nombre, nivel, naturaleza, tipo_sat, acepta_movimientos, activo, cuenta_padre) VALUES (?, ?, ?, ?, ?, ?, 1, ?)');
     const ia = db.prepare('INSERT OR IGNORE INTO auxiliares (codigo, nombre, rfc, tipo) VALUES (?, ?, ?, ?)');
     const idp = db.prepare('INSERT OR IGNORE INTO departamentos (codigo, nombre) VALUES (?, ?)');
     const icc = db.prepare('INSERT OR IGNORE INTO centros_costos (codigo, nombre) VALUES (?, ?)');
     const ip = db.prepare('INSERT OR IGNORE INTO polizas (tipo, numero, fecha, concepto, mes, ejercicio) VALUES (?, ?, ?, ?, ?, ?)');
     const ipd = db.prepare('INSERT INTO polizas_detalle (poliza_id, cuenta_id, debe, haber, concepto, referencia) VALUES (?, ?, ?, ?, ?, ?)');
     const gpi = db.prepare('SELECT id FROM polizas WHERE tipo = ? AND numero = ? AND ejercicio = ?');
-    const gci = db.prepare('SELECT id FROM cuentas WHERE codigo = ?');
+    const gci = db.prepare('SELECT id, nombre FROM cuentas WHERE codigo = ?');
     const ucfg = db.prepare('INSERT OR REPLACE INTO configuracion (clave, valor) VALUES (?, ?)');
     const ipp = db.prepare('INSERT OR IGNORE INTO presupuestos (cuenta_id, mes, ejercicio, presupuesto) VALUES (?, ?, ?, ?)');
 
@@ -129,6 +131,7 @@ function importarFDB(fdbPath, opts) {
       const ctaData = getFDBData(fdbPath, ctaTable, ctaCols);
       log.push('CUENTAS' + year + ': ' + ctaData.length + ' cuentas');
       const tipoSatMap = { A: 'S', G: 'S', D: 'N', C: 'N', I: 'S', O: 'N' };
+      const padres = {};
       for (const row of ctaData) {
         const codigo = safe(() => (row.NUM_CTA || '').trim().replace(/^0+/, ''), '');
         const nombre = safe(() => (row.NOMBRE || '').trim(), '');
@@ -138,23 +141,15 @@ function importarFDB(fdbPath, opts) {
         const naturaleza = natVal === 1 ? 'A' : 'D';
         const tipoSat = tipoSatMap[(row.TIPO || '').trim()] || 'N';
         const acepta = row.BANDMULTI === '0' || row.BANDMULTI === 0 ? 0 : 1;
-        safe(() => ic.run(codigo, nombre, nivel, naturaleza, tipoSat, acepta), null);
+        const ctaPapa = (row.CTA_PAPA || '').trim();
+        const padre = (ctaPapa && ctaPapa !== '-1') ? ctaPapa.replace(/^0+/, '') : null;
+        padres[codigo] = padre;
+        safe(() => ic.run(codigo, nombre, nivel, naturaleza, tipoSat, acepta, padre), null);
       }
       res.cuentas += ctaData.length;
 
-      const auxTable = tables.find(t => t === 'AUXILIAR' + ys);
-      if (auxTable) {
-        const auxCols = getFDBColumns(fdbPath, auxTable);
-        const auxData = getFDBData(fdbPath, auxTable, auxCols);
-        log.push('AUXILIAR' + year + ': ' + auxData.length);
-        for (const row of auxData) {
-          const codigo = safe(() => (row.CODIGO || row.CUENTA || '').trim(), '');
-          const nombre = safe(() => (row.NOMBRE || '').trim(), '');
-          const rfc = safe(() => (row.RFC || '').trim(), '');
-          if (codigo && nombre) safe(() => ia.run(codigo, nombre, rfc, 'A'), null);
-        }
-        res.auxiliares += auxData.length;
-      }
+      // Note: COI also has AUXILIAR{YY} tables with ALL poliza detail (DEBE_HABER, MONTOMOV, NUM_CTA)
+      // Skipped here because they contain 40k+ rows which would cause timeout; OPETER/OPEIET suffice
 
       const salTable = tables.find(t => t === 'SALDOS' + ys);
       if (salTable) {
@@ -235,7 +230,7 @@ function importarFDB(fdbPath, opts) {
           safe(() => ipd.run(polRow.id, ctaRow.id, tipo === 'E' || tipoOrig === 'Tr' ? 0 : monto, tipo === 'E' || tipoOrig === 'Tr' ? monto : 0, '', (row.RFCPROVE || '').trim()), null);
           count++;
         }
-        log.push(opTbl + ' (año ' + year + '): ' + count + ' partidas');
+        if (count > 0) log.push(opTbl + ' (año ' + year + '): ' + count + ' partidas');
         res.detalles += count;
       }
     };
@@ -270,9 +265,11 @@ function importarFDB(fdbPath, opts) {
       const data = getFDBData(fdbPath, ctaTerTable, cols);
       log.push('CTATER: ' + data.length + ' terceros');
       for (const row of data) {
-        const codigo = safe(() => (row.CUENTA || row.CODIGO || '').trim(), '');
+        const codigo = safe(() => (row.CUENTA || '').trim(), '');
         const rfc = safe(() => (row.RFCIDFISC || '').trim(), '');
-        const nombre = rfc || codigo;
+        const codeClean = codigo.replace(/^0+/, '');
+        const ctaRow = safe(() => gci.get(codeClean), null);
+        const nombre = ctaRow ? (ctaRow.nombre || rfc || codigo) : (rfc || codigo);
         if (codigo) safe(() => ia.run(codigo, nombre, rfc, 'C'), null);
       }
       res.auxiliares += data.length;
@@ -311,6 +308,17 @@ function importarFDB(fdbPath, opts) {
       log.push('CONCEPTO: ' + data.length + ' conceptos');
       res.conpeptos += data.length;
     }
+
+    // Ensure default config entries exist
+    const defs = [
+      ['empresa_nombre', 'Mi Empresa'], ['empresa_rfc', 'XXXX000101XXX'],
+      ['ejercicio_actual', String(Math.max(...res.years))], ['mes_actual', '12'],
+      ['iva_tasa', '0.16'], ['moneda', 'MXN'],
+      ['ultima_poliza_I', '0'], ['ultima_poliza_E', '0'],
+      ['ultima_poliza_D', '0'], ['ultima_poliza_O', '0'],
+      ['empresa_direccion', '']
+    ];
+    for (const [k, v] of defs) safe(() => ucfg.run(k, v), null);
 
     return { ok: true, log, res };
   } catch (e) {

@@ -84,15 +84,26 @@ function getBalanceGeneral(ejercicio, mes) {
 }
 
 function getIVA(ejercicio, mes) {
+  // Buscar cuentas de IVA por nombre (no por código fijo, para compatibilidad COI)
+  function buscarCuentaIva(tipo) {
+    const rows = db().prepare(`SELECT codigo FROM cuentas
+      WHERE (codigo LIKE ? OR codigo LIKE ? OR nombre LIKE ? OR nombre LIKE ?) AND acepta_movimientos = 1
+      LIMIT 1`).all(...tipo);
+    return rows.length > 0 ? rows[0].codigo + '%' : null;
+  }
+
+  const ivaAcrPatron = buscarCuentaIva(['1108%', '1200001%', 'IVA ACREDITABLE%', 'IVA A FAVOR%']);
+  const ivaTrasPatron = buscarCuentaIva(['2104%', '218%', 'IVA TRASLADADO%', 'IMPUESTOS TRASLADADOS%']);
+
   const ivaAcr = db().prepare(`SELECT COALESCE(SUM(pd.debe), 0) as total
     FROM polizas_detalle pd JOIN polizas p ON p.id = pd.poliza_id
     JOIN cuentas c ON c.id = pd.cuenta_id
-    WHERE p.ejercicio = ? AND p.mes <= ? AND c.codigo LIKE '1108%'`).get(ejercicio, mes);
+    WHERE p.ejercicio = ? AND p.mes <= ? AND c.codigo LIKE ?`).get(ejercicio, mes, ivaAcrPatron || '___');
 
   const ivaTras = db().prepare(`SELECT COALESCE(SUM(pd.haber), 0) as total
     FROM polizas_detalle pd JOIN polizas p ON p.id = pd.poliza_id
     JOIN cuentas c ON c.id = pd.cuenta_id
-    WHERE p.ejercicio = ? AND p.mes <= ? AND c.codigo LIKE '2104%'`).get(ejercicio, mes);
+    WHERE p.ejercicio = ? AND p.mes <= ? AND c.codigo LIKE ?`).get(ejercicio, mes, ivaTrasPatron || '___');
 
   return {
     iva_acreditable: ivaAcr.total,

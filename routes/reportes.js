@@ -83,15 +83,28 @@ router.get('/balance', (req, res) => {
   let capital = [];
   let utilidadEjercicio = 0;
 
+  function codePrefix(codigo, len) {
+    return codigo.replace(/^0+/, '').substring(0, len);
+  }
+
   for (const s of saldos) {
     if (Math.abs(s.saldo) < 0.01) continue;
     const item = { codigo: s.codigo, nombre: s.nombre, saldo: Math.abs(s.saldo) };
-    if (s.codigo.startsWith('11')) activoCirculante.push(item);
-    else if (s.codigo.startsWith('12')) activoNoCirculante.push(item);
-    else if (s.codigo.startsWith('21')) pasivoCirculante.push(item);
-    else if (s.codigo.startsWith('22')) pasivoNoCirculante.push(item);
-    else if (s.codigo.startsWith('3')) {
-      if (s.codigo === '3203' || s.codigo === '3204') {
+    const p3 = codePrefix(s.codigo, 3);
+    const p2 = codePrefix(s.codigo, 2);
+
+    // Clasificación por rango de códigos (soporta COI y códigos cortos)
+    if (/^1(1[1-9]|2[0-9])/.test(p3) || p2 === '11') {
+      activoCirculante.push(item);
+    } else if (/^1(3[1-9]|4[0-9]|5[0-9]|6[0-9]|7[0-9]|8[0-9]|9[0-9])/.test(p3) || p2 === '12') {
+      activoNoCirculante.push(item);
+    } else if (/^2(1[1-9]|2[0-9])/.test(p3) || p2 === '21') {
+      pasivoCirculante.push(item);
+    } else if (/^2(3[0-9]|4[0-9]|5[0-9]|6[0-9]|7[0-9]|8[0-9]|9[0-9])/.test(p3) || p2 === '22') {
+      pasivoNoCirculante.push(item);
+    } else if (/^3/.test(p3) || p2 === '3') {
+      const last4 = s.codigo.replace(/^0+/, '').slice(-4);
+      if (last4 === '3203' || last4 === '3204' || s.codigo.includes('RESULTADO') || s.codigo.includes('340')) {
         utilidadEjercicio = Math.abs(s.saldo);
       } else {
         capital.push(item);
