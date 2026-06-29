@@ -56,10 +56,10 @@
                     <% } %>
                   </td>
                   <td class="text-center">
-                    <a href="/catalogo/editar/<%= c.id %>" class="btn btn-sm btn-outline-primary me-1" title="Editar">
+                    <a href="/catalogo/<%= c.id %>/editar" class="btn btn-sm btn-outline-primary me-1" title="Editar">
                       <i class="bi bi-pencil"></i>
                     </a>
-                    <a href="/catalogo/eliminar/<%= c.id %>" class="btn btn-sm btn-outline-danger" title="Eliminar" onclick="return confirm('¿Eliminar la cuenta <%= c.codigo %> - <%= c.nombre %>?')">
+                    <a href="/catalogo/<%= c.id %>/eliminar" class="btn btn-sm btn-outline-danger" title="Eliminar" onclick="return confirm('¿Eliminar la cuenta <%= c.codigo %> - <%= c.nombre %>?')">
                       <i class="bi bi-trash"></i>
                     </a>
                   </td>

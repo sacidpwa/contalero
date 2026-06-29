@@ -71,6 +71,7 @@ async function initDB() {
     get(_, prop) {
       if (prop === 'prepare') return (sql) => new Statement(sqlDb, sql, persist);
       if (prop === 'exec') return (sql) => sqlDb.exec(sql);
+      if (prop === 'persist') return persist;
       if (prop === 'transaction') {
         return (fn) => (...args) => {
           sqlDb.run('BEGIN');

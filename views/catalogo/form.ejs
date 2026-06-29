@@ -10,7 +10,7 @@
 
   <div class="card shadow-sm">
     <div class="card-body">
-      <form action="/catalogo<%= cuenta && cuenta.id ? '/editar/' + cuenta.id : '/nueva' %>" method="POST" class="row g-3">
+      <form action="<%= cuenta && cuenta.id ? '/catalogo/' + cuenta.id + '/editar' : '/catalogo/nueva' %>" method="POST" class="row g-3">
         <div class="col-md-4">
           <label for="codigo" class="form-label">Código <span class="text-danger">*</span></label>
           <input type="text" class="form-control" id="codigo" name="codigo" value="<%= cuenta ? cuenta.codigo : '' %>" required maxlength="20" placeholder="Ej: 1.01.01">

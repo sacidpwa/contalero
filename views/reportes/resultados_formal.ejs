@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Estado de Resultados</title>
+  <style>
+    @page { margin: 1.5cm; size: landscape; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 8.5pt;
+      color: #000;
+      padding: 15px;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 18px;
+      border-bottom: 2px solid #000;
+      padding-bottom: 10px;
+    }
+    .header h1 { font-size: 13pt; font-weight: bold; text-transform: uppercase; }
+    .header h2 { font-size: 11pt; font-weight: bold; margin-top: 3px; }
+    .header p { font-size: 8pt; margin-top: 3px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 2px 4px; vertical-align: top; text-align: left; }
+    th { border-bottom: 1px solid #000; text-align: center; font-size: 7.5pt; }
+    .right { text-align: right; }
+    .section-title {
+      font-weight: bold;
+      font-size: 9pt;
+      border-bottom: 1px solid #000;
+      padding-top: 8px;
+    }
+    .cuenta { padding-left: 12px; font-size: 8pt; }
+    .total-row { border-top: 1px solid #999; font-weight: bold; }
+    .subtotal-row { font-weight: bold; border-top: 2px solid #000; font-size: 9pt; }
+    .neto-row { border-top: 3px double #000; font-weight: bold; font-size: 10pt; }
+    .footer {
+      margin-top: 30px;
+      text-align: center;
+      font-size: 7pt;
+      color: #666;
+      border-top: 1px solid #ccc;
+      padding-top: 8px;
+    }
+    .firmas {
+      margin-top: 40px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .firma { text-align: center; width: 40%; }
+    .firma .linea { border-top: 1px solid #000; margin-top: 30px; padding-top: 4px; font-size: 7pt; }
+    @media print {
+      .no-print { display: none; }
+      body { padding: 0; }
+    }
+  </style>
+</head>
+<body>
+  <button class="no-print" onclick="window.print()" style="margin-bottom:12px;padding:5px 15px;cursor:pointer;font-size:9pt;">
+    Imprimir / PDF
+  </button>
+
+  <% function fmt(n) { return Number(n).toLocaleString('es-MX', {minimumFractionDigits:2,maximumFractionDigits:2}); } %>
+  <% function pctFmt(n) { return n.toFixed(2) + '%'; } %>
+
+  <div class="header">
+    <h1><%= empresa || 'Contalero' %></h1>
+    <h2>Estado de Resultados</h2>
+    <p>
+      <% if (desde == 1) { %>
+        Del 1 de enero al <%= diasMes %> de <%= meses[hasta-1] %> de <%= ejercicio %>
+      <% } else { %>
+        Del 1 de <%= meses[desde-1] %> al <%= diasMes %> de <%= meses[hasta-1] %> de <%= ejercicio %>
+      <% } %>
+    </p>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="text-align:left;width:36%;">Cuenta</th>
+        <th colspan="2" style="border-right:1px solid #999;">
+          <% if (desde == 1) { %>Enero - <%= meses[hasta-1] %><% } else { %><%= meses[desde-1] %> - <%= meses[hasta-1] %><% } %>
+        </th>
+        <th colspan="2">Acumulado <%= ejercicio %></th>
+      </tr>
+      <tr>
+        <th style="text-align:left;"></th>
+        <th class="right">Importe</th>
+        <th class="right">%</th>
+        <th class="right">Importe</th>
+        <th class="right">%</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- INGRESOS -->
+      <tr><td colspan="5" class="section-title">INGRESOS</td></tr>
+      <% er.ingresos.forEach(function(c) { %>
+        <tr>
+          <td class="cuenta"><%= c.codigo.replace(/^0+/, '') %> — <%= c.nombre %></td>
+          <td class="right">$<%= fmt(c.perVal) %></td>
+          <td class="right"><%= pctFmt(c.perPct) %></td>
+          <td class="right">$<%= fmt(c.ytdVal) %></td>
+          <td class="right"><%= pctFmt(c.ytdPct) %></td>
+        </tr>
+      <% }); %>
+      <tr class="total-row">
+        <td>Total Ingresos</td>
+        <td class="right">$<%= fmt(er.totalIngresosPer) %></td>
+        <td class="right">100.00%</td>
+        <td class="right">$<%= fmt(er.totalIngresosYTD) %></td>
+        <td class="right">100.00%</td>
+      </tr>
+
+      <!-- COSTOS -->
+      <tr><td colspan="5" class="section-title" style="padding-top:12px;">COSTOS</td></tr>
+      <% er.costos.forEach(function(c) { %>
+        <tr>
+          <td class="cuenta"><%= c.codigo.replace(/^0+/, '') %> — <%= c.nombre %></td>
+          <td class="right">$<%= fmt(c.perVal) %></td>
+          <td class="right"><%= pctFmt(c.perPct) %></td>
+          <td class="right">$<%= fmt(c.ytdVal) %></td>
+          <td class="right"><%= pctFmt(c.ytdPct) %></td>
+        </tr>
+      <% }); %>
+      <tr class="total-row">
+        <td>Total Costos</td>
+        <td class="right">$<%= fmt(er.totalCostosPer) %></td>
+        <td class="right"><%= pctFmt(er.totalCostosPer / er.ventasPer * 100) %></td>
+        <td class="right">$<%= fmt(er.totalCostosYTD) %></td>
+        <td class="right"><%= pctFmt(er.totalCostosYTD / er.ventasYTD * 100) %></td>
+      </tr>
+
+      <tr class="subtotal-row">
+        <td>Utilidad Bruta</td>
+        <td class="right">$<%= fmt(er.utilidadBrutaPer) %></td>
+        <td class="right"><%= pctFmt(er.utilidadBrutaPer / er.ventasPer * 100) %></td>
+        <td class="right">$<%= fmt(er.utilidadBrutaYTD) %></td>
+        <td class="right"><%= pctFmt(er.utilidadBrutaYTD / er.ventasYTD * 100) %></td>
+      </tr>
+
+      <!-- GASTOS DE OPERACIÓN -->
+      <tr><td colspan="5" class="section-title" style="padding-top:12px;">GASTOS DE OPERACIÓN</td></tr>
+      <% Object.keys(er.gastosOp).forEach(function(key) { %>
+        <% var grp = er.gastosOp[key]; %>
+        <% var hasMov = grp.some(function(c) { return Math.abs(c.perVal) > 0.01 || Math.abs(c.ytdVal) > 0.01; }); %>
+        <% if (!hasMov && key === 'otros') return; %>
+        <tr><td colspan="5" style="padding-left:10px;font-weight:bold;font-size:8pt;padding-top:4px;"><%= er.gastosOpDef[key].label %></td></tr>
+        <% if (hasMov) { %>
+          <% grp.forEach(function(c) { %>
+            <% if (Math.abs(c.perVal) > 0.01 || Math.abs(c.ytdVal) > 0.01) { %>
+              <tr>
+                <td class="cuenta" style="padding-left:20px;"><%= c.codigo.replace(/^0+/, '') %> — <%= c.nombre %></td>
+                <td class="right">$<%= fmt(c.perVal) %></td>
+                <td class="right"><%= pctFmt(c.perPct) %></td>
+                <td class="right">$<%= fmt(c.ytdVal) %></td>
+                <td class="right"><%= pctFmt(c.ytdPct) %></td>
+              </tr>
+            <% } %>
+          <% }); %>
+        <% } %>
+        <tr class="total-row">
+          <td style="padding-left:12px;">Total <%= er.gastosOpDef[key].label %></td>
+          <td class="right">$<%= fmt(er.gastosOpTotals[key].perVal) %></td>
+          <td class="right"><%= pctFmt(er.gastosOpTotals[key].perVal / er.ventasPer * 100) %></td>
+          <td class="right">$<%= fmt(er.gastosOpTotals[key].ytdVal) %></td>
+          <td class="right"><%= pctFmt(er.gastosOpTotals[key].ytdVal / er.ventasYTD * 100) %></td>
+        </tr>
+      <% }); %>
+      <tr class="total-row" style="border-top:2px solid #000;">
+        <td>Total Gastos de Operación</td>
+        <td class="right">$<%= fmt(er.totalGastosPer) %></td>
+        <td class="right"><%= pctFmt(er.totalGastosPer / er.ventasPer * 100) %></td>
+        <td class="right">$<%= fmt(er.totalGastosYTD) %></td>
+        <td class="right"><%= pctFmt(er.totalGastosYTD / er.ventasYTD * 100) %></td>
+      </tr>
+
+      <tr class="subtotal-row">
+        <td>Utilidad de Operación</td>
+        <td class="right">$<%= fmt(er.utilidadOperacionPer) %></td>
+        <td class="right"><%= pctFmt(er.utilidadOperacionPer / er.ventasPer * 100) %></td>
+        <td class="right">$<%= fmt(er.utilidadOperacionYTD) %></td>
+        <td class="right"><%= pctFmt(er.utilidadOperacionYTD / er.ventasYTD * 100) %></td>
+      </tr>
+
+      <!-- OTROS INGRESOS Y GASTOS -->
+      <tr><td colspan="5" class="section-title" style="padding-top:12px;">OTROS INGRESOS Y GASTOS</td></tr>
+      <% Object.keys(er.otrosDef).forEach(function(key) { %>
+        <% var grp = er.otrosGrupos[key]; %>
+        <% var hasMov = grp.some(function(c) { return Math.abs(c.perVal) > 0.01 || Math.abs(c.ytdVal) > 0.01; }); %>
+        <tr><td colspan="5" style="padding-left:10px;font-weight:bold;font-size:8pt;padding-top:4px;"><%= er.otrosDef[key].label %></td></tr>
+        <% if (hasMov) { %>
+          <% grp.forEach(function(c) { %>
+            <% if (Math.abs(c.perVal) > 0.01 || Math.abs(c.ytdVal) > 0.01) { %>
+              <tr>
+                <td class="cuenta" style="padding-left:20px;"><%= c.codigo.replace(/^0+/, '') %> — <%= c.nombre %></td>
+                <td class="right">$<%= fmt(c.perVal) %></td>
+                <td class="right"><%= pctFmt(c.perPct) %></td>
+                <td class="right">$<%= fmt(c.ytdVal) %></td>
+                <td class="right"><%= pctFmt(c.ytdPct) %></td>
+              </tr>
+            <% } %>
+          <% }); %>
+        <% } %>
+        <tr class="total-row">
+          <td style="padding-left:12px;">Total <%= er.otrosDef[key].label %></td>
+          <td class="right">$<%= fmt(er.otrosGrupoTotals[key].perVal) %></td>
+          <td class="right"><%= pctFmt(er.otrosGrupoTotals[key].perVal / er.ventasPer * 100) %></td>
+          <td class="right">$<%= fmt(er.otrosGrupoTotals[key].ytdVal) %></td>
+          <td class="right"><%= pctFmt(er.otrosGrupoTotals[key].ytdVal / er.ventasYTD * 100) %></td>
+        </tr>
+      <% }); %>
+      <tr class="total-row" style="border-top:2px solid #000;">
+        <td>Total Otros Ingresos</td>
+        <td class="right">$<%= fmt(er.totalOtrosIngresosPer) %></td>
+        <td class="right"><%= pctFmt(er.totalOtrosIngresosPer / er.ventasPer * 100) %></td>
+        <td class="right">$<%= fmt(er.totalOtrosIngresosYTD) %></td>
+        <td class="right"><%= pctFmt(er.totalOtrosIngresosYTD / er.ventasYTD * 100) %></td>
+      </tr>
+      <tr class="total-row">
+        <td>Total Otros Gastos</td>
+        <td class="right">$<%= fmt(er.totalOtrosGastosPer) %></td>
+        <td class="right"><%= pctFmt(er.totalOtrosGastosPer / er.ventasPer * 100) %></td>
+        <td class="right">$<%= fmt(er.totalOtrosGastosYTD) %></td>
+        <td class="right"><%= pctFmt(er.totalOtrosGastosYTD / er.ventasYTD * 100) %></td>
+      </tr>
+
+      <tr class="neto-row">
+        <td>Utilidad Neta</td>
+        <td class="right">$<%= fmt(er.utilidadNetaPer) %></td>
+        <td class="right"><%= pctFmt(er.utilidadNetaPer / er.ventasPer * 100) %></td>
+        <td class="right">$<%= fmt(er.utilidadNetaYTD) %></td>
+        <td class="right"><%= pctFmt(er.utilidadNetaYTD / er.ventasYTD * 100) %></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="firmas">
+    <div class="firma"><div class="linea">Elaboró</div></div>
+    <div class="firma"><div class="linea">Autorizó</div></div>
+  </div>
+
+  <div class="footer">
+    Documento generado por Contalero — <%= new Date().toLocaleDateString('es-MX') %>
+  </div>
+</body>
+</html>

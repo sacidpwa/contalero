@@ -22,12 +22,9 @@ function queryFDB(fdbPath, sql) {
 
 function parseTable(out, columns) {
   const rows = [];
-  let started = false;
   for (const line of out.split(/\r?\n/)) {
     const t = line.trim();
-    if (!t) continue;
-    if (/^=+$/.test(t)) { started = true; continue; }
-    if (!started || t.startsWith('RDB$') || /^CONCAT\d*$/.test(t)) continue;
+    if (!t || /^=+$/.test(t) || t.startsWith('RDB$')) continue;
     const parts = t.split('||||');
     if (parts.length === columns.length) {
       const row = {};
@@ -67,8 +64,10 @@ function getFDBColumns(fdbPath, tableName) {
 }
 
 function getFDBData(fdbPath, tableName, columns) {
-  const sel = columns.map(c => `COALESCE("${c}",'')`).join("||'||||'||");
-  const sql = `SELECT ${sel} FROM "${tableName}"; QUIT;`;
+  const lf = String.fromCharCode(10);
+  const cr = String.fromCharCode(13);
+  const sel = columns.map(c => `REPLACE(REPLACE(REPLACE(COALESCE("${c}",''),'"',' '),'${lf}',' '),'${cr}',' ')`).join("||'||||'||");
+  const sql = `SET HEADING OFF;\nSELECT ${sel} FROM "${tableName}"; QUIT;`;
   const out = queryFDB(fdbPath, sql);
   return parseTable(out, columns);
 }
@@ -106,23 +105,24 @@ function importarFDB(fdbPath, opts) {
     runSql('DELETE FROM configuracion');
     runSql('PRAGMA foreign_keys = ON');
 
-    const ic = db.prepare('INSERT OR IGNORE INTO cuentas (codigo, nombre, nivel, naturaleza, tipo_sat, acepta_movimientos, activo, cuenta_padre) VALUES (?, ?, ?, ?, ?, ?, 1, ?)');
-    const ia = db.prepare('INSERT OR IGNORE INTO auxiliares (codigo, nombre, rfc, tipo) VALUES (?, ?, ?, ?)');
-    const idp = db.prepare('INSERT OR IGNORE INTO departamentos (codigo, nombre) VALUES (?, ?)');
-    const icc = db.prepare('INSERT OR IGNORE INTO centros_costos (codigo, nombre) VALUES (?, ?)');
-    const ip = db.prepare('INSERT OR IGNORE INTO polizas (tipo, numero, fecha, concepto, mes, ejercicio) VALUES (?, ?, ?, ?, ?, ?)');
-    const ipd = db.prepare('INSERT INTO polizas_detalle (poliza_id, cuenta_id, debe, haber, concepto, referencia) VALUES (?, ?, ?, ?, ?, ?)');
+    const esc = (s) => "'" + String(s).replace(/'/g, "''") + "'";
+    const qesc = (s) => '"' + String(s).replace(/"/g, '""') + '"';
+
+    const typeMap = { I: 'I', E: 'E', D: 'D', O: 'O', Dr: 'D', Ig: 'I', Eg: 'E', Tr: 'O', Ch: 'O' };
     const gpi = db.prepare('SELECT id FROM polizas WHERE tipo = ? AND numero = ? AND ejercicio = ?');
     const gci = db.prepare('SELECT id, nombre, naturaleza FROM cuentas WHERE codigo = ?');
-    const ucfg = db.prepare('INSERT OR REPLACE INTO configuracion (clave, valor) VALUES (?, ?)');
-    const ipp = db.prepare('INSERT OR IGNORE INTO presupuestos (cuenta_id, mes, ejercicio, presupuesto) VALUES (?, ?, ?, ?)');
-
-    const typeMap = { I: 'I', E: 'E', D: 'D', O: 'O', Dr: 'D', Ig: 'I', Eg: 'E', Tr: 'O' };
 
     const importYear = (year) => {
       if (!year) return;
       res.years.push(year);
       const ys = String(year).slice(-2);
+
+      const execBatch = (arr, batchSize) => {
+        if (arr.length === 0) return;
+        let sql = '', cnt = 0;
+        for (const s of arr) { sql += s; cnt++; if (cnt >= batchSize) { db.exec(sql); sql = ''; cnt = 0; } }
+        if (sql) db.exec(sql);
+      };
 
       const ctaTable = tables.find(t => t === 'CUENTAS' + ys);
       if (!ctaTable) { log.push('Año ' + year + ': no se encontró CUENTAS' + ys); return; }
@@ -132,6 +132,7 @@ function importarFDB(fdbPath, opts) {
       log.push('CUENTAS' + year + ': ' + ctaData.length + ' cuentas');
       const tipoSatMap = { A: 'S', G: 'S', D: 'N', C: 'N', I: 'S', O: 'N' };
       const padres = {};
+      const ctaInserts = [];
       for (const row of ctaData) {
         const codigo = safe(() => (row.NUM_CTA || '').trim().replace(/^0+/, ''), '');
         const nombre = safe(() => (row.NOMBRE || '').trim(), '');
@@ -144,17 +145,20 @@ function importarFDB(fdbPath, opts) {
         const ctaPapa = (row.CTA_PAPA || '').trim();
         const padre = (ctaPapa && ctaPapa !== '-1') ? ctaPapa.replace(/^0+/, '') : null;
         padres[codigo] = padre;
-        safe(() => ic.run(codigo, nombre, nivel, naturaleza, tipoSat, acepta, padre), null);
+        ctaInserts.push("INSERT OR IGNORE INTO cuentas (codigo,nombre,nivel,naturaleza,tipo_sat,acepta_movimientos,activo,cuenta_padre) VALUES (" +
+          esc(codigo) + "," + esc(nombre) + "," + nivel + "," + esc(naturaleza) + "," + esc(tipoSat) + "," + acepta + ",1," + (padre ? esc(padre) : 'NULL') + ");");
       }
-      // Marcar cuentas padre como no detalle para evitar doble conteo en reportes
+      execBatch(ctaInserts, 50);
+      // Marcar cuentas padre como no detalle
       const pCodes = Object.values(padres).filter(Boolean);
       const uniqueP = [...new Set(pCodes)];
       if (uniqueP.length > 0) {
-        safe(() => db().prepare("UPDATE cuentas SET acepta_movimientos = 0 WHERE codigo IN (" + uniqueP.map(() => '?').join(',') + ")").run(...uniqueP), null);
+        const pcod = uniqueP.map(c => esc(c)).join(',');
+        safe(() => db.exec("UPDATE cuentas SET acepta_movimientos = 0 WHERE codigo IN (" + pcod + ")"), null);
       }
       res.cuentas += ctaData.length;
 
-      // Cache cuenta naturaleza for saldo calculation (0=Deudora/D, 1=Acreedora/A)
+      // Cache cuenta naturaleza (0=Deudora/D, 1=Acreedora/A)
       const natMap = {};
       for (const c of ctaData) {
         const code = (c.NUM_CTA || '').trim().replace(/^0+/, '');
@@ -168,6 +172,7 @@ function importarFDB(fdbPath, opts) {
         const salCols = getFDBColumns(fdbPath, salTable);
         const salData = getFDBData(fdbPath, salTable, salCols);
         log.push('SALDOS' + year + ': ' + salData.length);
+        const salInserts = [];
         for (const row of salData) {
           const numCta = (row.NUM_CTA || '').trim().replace(/^0+/, '');
           const nat = natMap[numCta] || 'D';
@@ -178,9 +183,11 @@ function importarFDB(fdbPath, opts) {
             const abono = parseFloat(row['ABONO' + sm] || '0') || 0;
             if (nat === 'A') running += (abono - cargo);
             else running += (cargo - abono);
-            safe(() => ucfg.run('saldo_' + year + '_' + sm + '_' + numCta, String(running)), null);
+            salInserts.push("INSERT OR REPLACE INTO configuracion (clave,valor) VALUES (" +
+              esc('saldo_' + year + '_' + sm + '_' + numCta) + "," + esc(String(running)) + ");");
           }
         }
+        execBatch(salInserts, 100);
         res.saldos += salData.length;
       }
 
@@ -189,6 +196,7 @@ function importarFDB(fdbPath, opts) {
         const polCols = getFDBColumns(fdbPath, polTable);
         const polData = getFDBData(fdbPath, polTable, polCols);
         log.push('POLIZAS' + year + ': ' + polData.length + ' pólizas');
+        const polInserts = [];
         for (const row of polData) {
           const tipoOrig = safe(() => (row.TIPO_POLI || row.TIPO_POLIZA || row.TIPOPOL || '').trim(), '');
           const tipo = typeMap[tipoOrig] || 'D';
@@ -198,8 +206,12 @@ function importarFDB(fdbPath, opts) {
           const concepto = safe(() => (row.CONCEP_PO || row.CONCEPTO || '').trim(), '');
           const mes = safe(() => parseInt(row.PERIODO || row.MES || '1') || 1, 1);
           const ejercicio = safe(() => parseInt(row.EJERCICIO || String(year)) || year, year);
-          if (tipo && numero && fecha) safe(() => ip.run(tipo, numero, fecha, concepto, mes, ejercicio), null);
+          if (tipo && numero && fecha) {
+            polInserts.push("INSERT OR IGNORE INTO polizas (tipo,numero,fecha,concepto,mes,ejercicio) VALUES (" +
+              esc(tipo) + "," + numero + "," + esc(fecha) + "," + esc(concepto) + "," + mes + "," + ejercicio + ");");
+          }
         }
+        execBatch(polInserts, 50);
         res.polizas += polData.length;
       }
 
@@ -208,6 +220,7 @@ function importarFDB(fdbPath, opts) {
         const presCols = getFDBColumns(fdbPath, presTable);
         const presData = getFDBData(fdbPath, presTable, presCols);
         log.push('PRESUP' + year + ': ' + presData.length);
+        const presInserts = [];
         for (const row of presData) {
           const codigo = safe(() => (row.NUM_CTA || '').trim().replace(/^0+/, ''), '');
           const ctaRow = safe(() => gci.get(codigo), null);
@@ -216,59 +229,57 @@ function importarFDB(fdbPath, opts) {
               const sm = String(m).padStart(2, '0');
               const k = 'PRESUP' + sm;
               const v = safe(() => row[k], undefined);
-              if (v !== undefined && v !== '') safe(() => ipp.run(ctaRow.id, m, year, parseFloat(v) || 0), null);
+              if (v !== undefined && v !== '') {
+                presInserts.push("INSERT OR IGNORE INTO presupuestos (cuenta_id,mes,ejercicio,presupuesto) VALUES (" +
+                  ctaRow.id + "," + m + "," + year + "," + (parseFloat(v) || 0) + ");");
+              }
             }
           }
         }
+        execBatch(presInserts, 50);
       }
 
-      for (const opTbl of ['OPETER', 'OPEIET']) {
-        if (!tables.includes(opTbl)) continue;
-        const opCols = getFDBColumns(fdbPath, opTbl);
-        const opData = getFDBData(fdbPath, opTbl, opCols);
-        if (opData.length === 0) continue;
+      // Importar detalle desde AUXILIAR{YY}
+      const auxTable = tables.find(t => t === 'AUXILIAR' + ys);
+      if (auxTable) {
+        const auxCols = getFDBColumns(fdbPath, auxTable);
+        const auxData = getFDBData(fdbPath, auxTable, auxCols);
+        log.push('AUXILIAR' + year + ': ' + auxData.length + ' partidas');
         let count = 0;
-        for (const row of opData) {
-          const fePol = safe(() => (row.FECHAPOL || '').trim(), '');
-          const feYear = fePol.substring(0, 4);
-          if (feYear && parseInt(feYear) !== year) continue;
-          const tipoOrig = safe(() => (row.TIPOPOL || '').trim(), '');
-          const tipo = typeMap[tipoOrig] || 'D';
-          const numpol = safe(() => parseInt(row.NUMPOL || '0') || 0, 0);
-          const polRow = safe(() => gpi.get(tipo, numpol, year), null);
-          if (!polRow) continue;
-          const numCta = safe(() => (row.NUMCTA || '').trim().replace(/^0+/, ''), '');
-          const ctaRow = safe(() => gci.get(numCta), null);
-          if (!ctaRow) continue;
-          const monto = Math.abs(safe(() => parseFloat(row.MONCONIVA || row.MONDEDISR || '0') || 0, 0));
-          if (monto === 0) continue;
-          // Determine debe/haber según tipo de póliza y naturaleza de cuenta
-          const codeDigit = (numCta || '')[0];
-          const acctNat = ctaRow ? ctaRow.naturaleza : null;
-          let debe = 0, haber = 0;
-          if (tipo === 'I' && codeDigit === '4') {
-            // Ingreso: 4xxx=ingreso(haber)
-            haber = monto;
-          } else if (tipo === 'E' && codeDigit === '2') {
-            // Egreso: 2xxx=proveedor/pasivo(haber)
-            haber = monto;
-          } else if (tipoOrig === 'Tr' && codeDigit === '2') {
-            // Transferencia: 2xxx=proveedor(haber)
-            haber = monto;
-          } else if (tipo === 'D' && acctNat) {
-            // Diario: usar naturaleza de la cuenta
-            if (acctNat === 'A') haber = monto;
-            else debe = monto;
-          } else {
-            // Default: debe
-            debe = monto;
+        const doAux = db.transaction(() => {
+          let batch = '', bc = 0;
+          for (const row of auxData) {
+            const tipoOrig = safe(() => (row.TIPO_POLI || '').trim(), '');
+            const numpol = safe(() => parseInt(row.NUM_POLIZ || '0') || 0, 0);
+            const ejer = safe(() => parseInt(row.EJERCICIO || year) || year, year);
+            if (!tipoOrig || !numpol) continue;
+            const tipo = typeMap[tipoOrig] || 'D';
+            const polRow = safe(() => gpi.get(tipo, numpol, ejer), null);
+            if (!polRow) continue;
+            const numCta = safe(() => (row.NUM_CTA || '').trim().replace(/^0+/, ''), '');
+            const ctaRow = safe(() => gci.get(numCta), null);
+            if (!ctaRow) continue;
+            const debeHaber = safe(() => (row.DEBE_HABER || '').trim(), '');
+            const monto = safe(() => parseFloat(row.MONTOMOV || '0') || 0, 0);
+            if (monto === 0 || (debeHaber !== 'D' && debeHaber !== 'H')) continue;
+            const debe = debeHaber === 'D' ? monto : 0;
+            const haber = debeHaber === 'H' ? monto : 0;
+            const concepto = safe(() => (row.CONCEP_PO || '').trim().replace(/'/g, "''"), '');
+            batch += "INSERT INTO polizas_detalle (poliza_id,cuenta_id,debe,haber,concepto) VALUES (" +
+              polRow.id + "," + ctaRow.id + "," + debe + "," + haber + "," + esc(concepto) + ");";
+            count++;
+            bc++;
+            if (bc >= 250) { safe(() => db.exec(batch), null); batch = ''; bc = 0; }
           }
-          safe(() => ipd.run(polRow.id, ctaRow.id, debe, haber, '', (row.RFCPROVE || '').trim()), null);
-          count++;
-        }
-        if (count > 0) log.push(opTbl + ' (año ' + year + '): ' + count + ' partidas');
+          if (batch) safe(() => db.exec(batch), null);
+        });
+        doAux();
+        if (count > 0) log.push('  → ' + count + ' registros insertados en polizas_detalle');
         res.detalles += count;
       }
+
+      // Persist after each year
+      db.persist();
     };
 
     if (opts.year) {
@@ -283,6 +294,8 @@ function importarFDB(fdbPath, opts) {
       for (const y of years) importYear(y);
     }
 
+    const auxInserts = [], deptoInserts = [], ccInserts = [], cfgInserts = [];
+
     const ccTable = tables.find(t => t === 'CCOSTOS');
     if (ccTable) {
       const cols = getFDBColumns(fdbPath, ccTable);
@@ -291,7 +304,7 @@ function importarFDB(fdbPath, opts) {
       for (const row of data) {
         const codigo = safe(() => String(row.ID || row.CODIGO || '').trim(), '');
         const nombre = safe(() => (row.DESCRIPCION || '').trim(), '');
-        if (codigo && nombre) safe(() => icc.run(codigo, nombre), null);
+        if (codigo && nombre) ccInserts.push("INSERT OR IGNORE INTO centros_costos (codigo,nombre) VALUES (" + esc(codigo) + "," + esc(nombre) + ");");
       }
     }
 
@@ -306,7 +319,7 @@ function importarFDB(fdbPath, opts) {
         const codeClean = codigo.replace(/^0+/, '');
         const ctaRow = safe(() => gci.get(codeClean), null);
         const nombre = ctaRow ? (ctaRow.nombre || rfc || codigo) : (rfc || codigo);
-        if (codigo) safe(() => ia.run(codigo, nombre, rfc, 'C'), null);
+        if (codigo) auxInserts.push("INSERT OR IGNORE INTO auxiliares (codigo,nombre,rfc,tipo) VALUES (" + esc(codigo) + "," + esc(nombre) + "," + esc(rfc) + ",'C');");
       }
       res.auxiliares += data.length;
     }
@@ -319,7 +332,7 @@ function importarFDB(fdbPath, opts) {
       for (const row of data) {
         const codigo = safe(() => (row.CODIGO || row.DEPTO || '').trim(), '');
         const nombre = safe(() => (row.NOMBRE || '').trim(), '');
-        if (codigo && nombre) safe(() => idp.run(codigo, nombre), null);
+        if (codigo && nombre) deptoInserts.push("INSERT OR IGNORE INTO departamentos (codigo,nombre) VALUES (" + esc(codigo) + "," + esc(nombre) + ");");
       }
     }
 
@@ -330,9 +343,9 @@ function importarFDB(fdbPath, opts) {
       log.push('PARAMEMP: ' + data.length + ' registros');
       if (data.length > 0) {
         const p = data[0];
-        if (p.NOMBRE) safe(() => ucfg.run('empresa_nombre', (p.NOMBRE || '').trim()), null);
-        if (p.RFCCIA) safe(() => ucfg.run('empresa_rfc', (p.RFCCIA || '').trim()), null);
-        if (p.DOMICILIO) safe(() => ucfg.run('empresa_direccion', (p.DOMICILIO || '').trim()), null);
+        if (p.NOMBRE) cfgInserts.push("INSERT OR REPLACE INTO configuracion (clave,valor) VALUES ('empresa_nombre'," + esc((p.NOMBRE || '').trim()) + ");");
+        if (p.RFCCIA) cfgInserts.push("INSERT OR REPLACE INTO configuracion (clave,valor) VALUES ('empresa_rfc'," + esc((p.RFCCIA || '').trim()) + ");");
+        if (p.DOMICILIO) cfgInserts.push("INSERT OR REPLACE INTO configuracion (clave,valor) VALUES ('empresa_direccion'," + esc((p.DOMICILIO || '').trim()) + ");");
         res.empresas++;
       }
     }
@@ -345,16 +358,31 @@ function importarFDB(fdbPath, opts) {
       res.conpeptos += data.length;
     }
 
-    // Ensure default config entries exist
-    const defs = [
-      ['empresa_nombre', 'Mi Empresa'], ['empresa_rfc', 'XXXX000101XXX'],
-      ['ejercicio_actual', String(Math.max(...res.years))], ['mes_actual', '12'],
-      ['iva_tasa', '0.16'], ['moneda', 'MXN'],
-      ['ultima_poliza_I', '0'], ['ultima_poliza_E', '0'],
-      ['ultima_poliza_D', '0'], ['ultima_poliza_O', '0'],
-      ['empresa_direccion', '']
-    ];
-    for (const [k, v] of defs) safe(() => ucfg.run(k, v), null);
+    // Default config entries
+    cfgInserts.push("INSERT OR REPLACE INTO configuracion (clave,valor) VALUES ('empresa_nombre','Mi Empresa');");
+    cfgInserts.push("INSERT OR REPLACE INTO configuracion (clave,valor) VALUES ('empresa_rfc','XXXX000101XXX');");
+    cfgInserts.push("INSERT OR REPLACE INTO configuracion (clave,valor) VALUES ('ejercicio_actual'," + esc(String(Math.max(...res.years))) + ");");
+    cfgInserts.push("INSERT OR REPLACE INTO configuracion (clave,valor) VALUES ('mes_actual','12');");
+    cfgInserts.push("INSERT OR REPLACE INTO configuracion (clave,valor) VALUES ('iva_tasa','0.16');");
+    cfgInserts.push("INSERT OR REPLACE INTO configuracion (clave,valor) VALUES ('moneda','MXN');");
+    cfgInserts.push("INSERT OR REPLACE INTO configuracion (clave,valor) VALUES ('ultima_poliza_I','0');");
+    cfgInserts.push("INSERT OR REPLACE INTO configuracion (clave,valor) VALUES ('ultima_poliza_E','0');");
+    cfgInserts.push("INSERT OR REPLACE INTO configuracion (clave,valor) VALUES ('ultima_poliza_D','0');");
+    cfgInserts.push("INSERT OR REPLACE INTO configuracion (clave,valor) VALUES ('ultima_poliza_O','0');");
+    cfgInserts.push("INSERT OR REPLACE INTO configuracion (clave,valor) VALUES ('empresa_direccion','');");
+
+    // Execute all post-year inserts
+    const execFinal = (arr, bs) => {
+      if (arr.length === 0) return;
+      let sql = '', cnt = 0;
+      for (const s of arr) { sql += s; cnt++; if (cnt >= bs) { db.exec(sql); sql = ''; cnt = 0; } }
+      if (sql) db.exec(sql);
+    };
+    execFinal(ccInserts, 50);
+    execFinal(auxInserts, 50);
+    execFinal(deptoInserts, 50);
+    execFinal(cfgInserts, 50);
+    db.persist();
 
     return { ok: true, log, res };
   } catch (e) {

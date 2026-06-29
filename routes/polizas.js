@@ -10,7 +10,7 @@ router.get('/', (req, res) => {
   const tipo = req.query.tipo || '';
   const limit = parseInt(req.query.limit || 100);
 
-  let sql = `SELECT p.*, (SELECT COALESCE(SUM(debe), 0) FROM polizas_detalle WHERE poliza_id = p.id) as total_debe FROM polizas p WHERE p.ejercicio = ? AND p.mes = ?`;
+  let sql = `SELECT p.*, (SELECT COALESCE(SUM(debe), 0) FROM polizas_detalle WHERE poliza_id = p.id) as total FROM polizas p WHERE p.ejercicio = ? AND p.mes = ?`;
   const params = [ejercicio, mes];
   if (tipo) { sql += ' AND p.tipo = ?'; params.push(tipo); }
   sql += ' ORDER BY p.tipo, p.numero DESC LIMIT ?';
@@ -71,7 +71,7 @@ router.get('/:id', (req, res) => {
     FROM polizas_detalle pd JOIN cuentas c ON c.id = pd.cuenta_id
     LEFT JOIN auxiliares a ON a.id = pd.auxiliar_id
     WHERE pd.poliza_id = ? ORDER BY pd.id`).all(req.params.id);
-  res.render('polizas/view', { poliza, detalles, title: `Póliza ${poliza.tipo}-${poliza.numero}` });
+  res.render('polizas/view', { poliza, detalle: detalles, title: `Póliza ${poliza.tipo}-${poliza.numero}` });
 });
 
 router.get('/:id/editar', (req, res) => {
